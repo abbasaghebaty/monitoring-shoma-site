@@ -16,5 +16,5 @@ binding = "SITE_AUTH_KV"
 id = "0be86a76d3644d4b87b8566bfe494bf2"
 
 # Required Cloudflare Worker secrets (set in Dashboard; never commit values):
-# BOT_TOKEN   - bot token for sending OTP messages
+# BOT_TOKEN   - bot token for sending OTP messages 
 # OTP_PEPPER  - independent random secret used to hash OTP values
