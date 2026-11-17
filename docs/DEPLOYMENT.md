@@ -10,15 +10,15 @@
 
 اگر نام repository تغییر کرد، مقدار `base` در `vite.config.js` و مسیر URL انتشار را نیز اصلاح کن.
 
-## متغیرهای Frontend
+## تنظیمات API در Frontend
 
-مقدار عمومی API از `VITE_API_BASE_URL` خوانده می‌شود. مقدار پیشنهادی برای GitHub Actions Variables:
+در Build تولیدی GitHub Pages، آدرس API به‌صورت قطعی از `src/config/app.js` و برابر آدرس Worker زیر است:
 
 ```text
 https://monitoring-shoma-site.abbas-aghebaty.workers.dev
 ```
 
-برای جلوگیری از ارسال درخواست‌ها به مبدأ اشتباه، فایل `src/config/app.js` همین آدرس تأییدشده را به‌عنوان fallback دارد؛ بنابراین اگر Repository Variable تنظیم نشده باشد، سایت به‌جای GitHub Pages مستقیماً از Worker استفاده می‌کند. در صورت تنظیم متغیر، مقدار آن بر fallback اولویت دارد.
+متغیر `VITE_API_BASE_URL` عمداً در workflow انتشار Pages تزریق نمی‌شود و حتی اگر در GitHub Repository Variables مقدار قدیمی یا اشتباه داشته باشد، نمی‌تواند آدرس API نسخه Production را override کند. در Buildهای غیرتولیدی، امکان استفاده از `VITE_API_BASE_URL` برای تنظیم محیط توسعه حفظ شده است.
 
 هیچ کلید محرمانه‌ای در متغیرهای `VITE_*` قرار نده.
 
