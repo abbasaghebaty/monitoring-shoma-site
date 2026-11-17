@@ -1,5 +1,4 @@
 import { apiRequest } from "./client";
-
 const query = (params = {}) => {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -7,17 +6,17 @@ const query = (params = {}) => {
   });
   return search.toString();
 };
-
 export const api = {
+  requestOtp: (telegramId) => apiRequest("/api/v1/auth/request-otp", { method: "POST", body: JSON.stringify({ telegramId }) }),
+  verifyOtp: (telegramId, code) => apiRequest("/api/v1/auth/verify-otp", { method: "POST", body: JSON.stringify({ telegramId, code }) }),
+  logout: () => apiRequest("/api/v1/auth/logout", { method: "POST" }),
+  me: () => apiRequest("/api/v1/auth/me"),
   health: () => apiRequest("/health"),
   dashboard: () => apiRequest("/api/v1/dashboard/summary"),
   products: (params) => apiRequest("/api/v1/products?" + query(params)),
   inventory: (params) => apiRequest("/api/v1/inventory?" + query(params)),
   sales: (params) => apiRequest("/api/v1/sales?" + query(params)),
-  purchases: (params) => apiRequest("/api/v1/purchases?" + query(params)),
+  debts: (params) => apiRequest("/api/v1/debts?" + query(params)),
   customers: (params) => apiRequest("/api/v1/customers?" + query(params)),
-  suppliers: (params) => apiRequest("/api/v1/suppliers?" + query(params)),
-  expenses: (params) => apiRequest("/api/v1/expenses?" + query(params)),
-  reports: (params) => apiRequest("/api/v1/reports?" + query(params)),
-  invoices: (params) => apiRequest("/api/v1/invoices?" + query(params)),
+  attendance: (params) => apiRequest("/api/v1/attendance?" + query(params)),
 };
