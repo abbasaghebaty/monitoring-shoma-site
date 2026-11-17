@@ -6,7 +6,14 @@ import { schemaRoutes } from "./routes/schema.js";
 export async function router(request, env) {
   const url = new URL(request.url);
   if (url.pathname === "/health") {
-    return json({ ok: true, service: "shoma-api", environment: env.APP_ENV || "unknown" });
+    // Verify the actual D1 binding without exposing schema or business data.
+    await env.DB.prepare("SELECT 1 AS connected").first();
+    return json({
+      ok: true,
+      service: "shoma-api",
+      environment: env.APP_ENV || "unknown",
+      database: "connected",
+    });
   }
   if (!url.pathname.startsWith("/api/v1/")) return json({ ok: false, error: { code: "NOT_FOUND", message: "مسیر پیدا نشد" } }, 404);
   if (url.pathname === "/api/v1/admin/schema") {
