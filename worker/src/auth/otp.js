@@ -6,35 +6,13 @@ const RESEND_SECONDS = 60;
 const MAX_ATTEMPTS = 5;
 
 async function sendTelegramMessage(env, telegramId, text) {
-  if (!env.BOT_TOKEN) {
-    const error = new Error("BOT_TOKEN is not configured");
-    error.code = "BOT_TOKEN_MISSING";
-    throw error;
-  }
-
+  if (!env.BOT_TOKEN) throw new Error("BOT_TOKEN is not configured");
   const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: telegramId, text, protect_content: true }),
   });
-
-  // Telegram can return HTTP 200 with { ok: false }; check both layers.
-  let result = null;
-  try {
-    result = await response.json();
-  } catch {
-    // Keep the diagnostic below useful without logging the raw response body.
-  }
-
-  if (!response.ok || result?.ok !== true) {
-    const error = new Error("Telegram delivery failed");
-    error.httpStatus = response.status;
-    error.telegramErrorCode = Number.isInteger(result?.error_code) ? result.error_code : null;
-    error.telegramDescription = typeof result?.description === "string"
-      ? result.description.slice(0, 300)
-      : "Telegram returned an invalid or non-JSON response";
-    throw error;
-  }
+  if (!response.ok) throw new Error("Telegram delivery failed");
 }
 
 export async function requestOtp(request, env) {
@@ -60,25 +38,8 @@ export async function requestOtp(request, env) {
     try {
       await sendTelegramMessage(env, telegramId, `کد ورود به پنل مدیریت فروشگاه شما: ${code}\nاعتبار: ۵ دقیقه\nاین کد را در اختیار دیگران قرار ندهید.`);
     } catch (error) {
-      // A failed delivery must not leave an unusable OTP or block an immediate retry.
-      await Promise.all([
-        env.SITE_AUTH_KV.delete(`otp:${telegramId}`),
-        env.SITE_AUTH_KV.delete(cooldownKey),
-      ]).catch((cleanupError) => {
-        console.error("OTP cleanup failed", {
-          message: cleanupError instanceof Error ? cleanupError.message : "Unknown cleanup error",
-        });
-      });
-
-      // Never log the bot token, OTP, request body, or raw Telegram response.
-      console.error("OTP delivery failed", {
-        code: error?.code || "TELEGRAM_DELIVERY_FAILED",
-        httpStatus: Number.isInteger(error?.httpStatus) ? error.httpStatus : null,
-        telegramErrorCode: Number.isInteger(error?.telegramErrorCode) ? error.telegramErrorCode : null,
-        telegramDescription: typeof error?.telegramDescription === "string"
-          ? error.telegramDescription
-          : (error?.code === "BOT_TOKEN_MISSING" ? "BOT_TOKEN is not configured" : "Unknown Telegram delivery error"),
-      });
+      await env.SITE_AUTH_KV.delete(`otp:${telegramId}`);
+      console.error("OTP delivery failed", error);
     }
   }
   return json({ ok: true, data: { message: "اگر حساب فعال و مجاز باشد، کد ورود ارسال می‌شود." } });
