@@ -21,9 +21,15 @@ async function sendTelegramMessage(env, telegramId, text) {
 
   // Telegram can return an API-level failure even when the HTTP response is successful.
   if (!response.ok || result?.ok !== true) {
-    const error = new Error(result?.description || `Telegram API HTTP ${response.status}`);
-    error.code = result?.error_code || response.status;
-    error.retryAfter = result?.parameters?.retry_after;
+    const error = new Error("Telegram delivery failed");
+    error.httpStatus = response.status;
+    error.telegramErrorCode = Number.isInteger(result?.error_code) ? result.error_code : null;
+    error.telegramDescription = typeof result?.description === "string"
+      ? result.description.slice(0, 300)
+      : "Telegram returned an invalid or non-JSON response";
+    error.retryAfter = Number.isInteger(result?.parameters?.retry_after)
+      ? result.parameters.retry_after
+      : null;
     throw error;
   }
 
@@ -76,10 +82,14 @@ export async function requestOtp(request, env) {
     } catch (error) {
       await env.SITE_AUTH_KV.delete(otpKey);
       await env.SITE_AUTH_KV.delete(cooldownKey);
+      // Never log the bot token, OTP, request body, or raw Telegram response.
       console.error("OTP_DELIVERY_FAILED", {
-        code: error.code || "TELEGRAM_REQUEST_FAILED",
-        message: error.message,
-        retryAfter: error.retryAfter || null,
+        httpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : null,
+        telegramErrorCode: Number.isInteger(error.telegramErrorCode) ? error.telegramErrorCode : null,
+        telegramDescription: typeof error.telegramDescription === "string"
+          ? error.telegramDescription
+          : (error.code === "BOT_TOKEN_MISSING" ? "BOT_TOKEN is not configured" : "Telegram request failed before a response was received"),
+        retryAfter: Number.isInteger(error.retryAfter) ? error.retryAfter : null,
       });
     }
   }
