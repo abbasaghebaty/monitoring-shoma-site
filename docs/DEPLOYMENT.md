@@ -12,7 +12,15 @@
 
 ## متغیرهای Frontend
 
-فقط origin عمومی API را در GitHub Actions Variables یا فایل تنظیمات build قرار بده: `VITE_API_BASE_URL`. هیچ کلید محرمانه‌ای در متغیر VITE قرار نده.
+مقدار عمومی API از `VITE_API_BASE_URL` خوانده می‌شود. مقدار پیشنهادی برای GitHub Actions Variables:
+
+```text
+https://monitoring-shoma-site.abbas-aghebaty.workers.dev
+```
+
+برای جلوگیری از ارسال درخواست‌ها به مبدأ اشتباه، فایل `src/config/app.js` همین آدرس تأییدشده را به‌عنوان fallback دارد؛ بنابراین اگر Repository Variable تنظیم نشده باشد، سایت به‌جای GitHub Pages مستقیماً از Worker استفاده می‌کند. در صورت تنظیم متغیر، مقدار آن بر fallback اولویت دارد.
+
+هیچ کلید محرمانه‌ای در متغیرهای `VITE_*` قرار نده.
 
 ## Worker
 
