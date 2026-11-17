@@ -1,69 +1,101 @@
 # سامانه مدیریت فروشگاه «شما»
 
-پنل مدیریتی فروشگاه با معماری تفکیک‌شده و قابل توسعه.
+پنل مدیریت و مانیتورینگ فروشگاه؛ با Frontend استاتیک، API مستقل و دیتابیس مرکزی فعلی فروشگاه.
 
-## معماری استقرار
+## معماری در یک نگاه
+
 - **Frontend:** React + Vite روی GitHub Pages
-- **Backend/API:** Cloudflare Workers (پوشه `worker/`)
-- **Database:** دیتابیس D1 فعلی فروشگاه با binding برابر `DB`
-- **CI/CD:** GitHub Actions برای build و انتشار خودکار GitHub Pages
+- **Backend/API:** Cloudflare Worker در پوشه `worker/`
+- **Database:** دیتابیس D1 با نام `shop-manager` و binding برابر `DB`
+- **انتشار Frontend:** GitHub Actions
 
-GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌کند. اجرای API، منطق کسب‌وکار و دسترسی به D1 فقط در Worker انجام می‌شود. مرورگر هرگز مستقیماً به D1 وصل نمی‌شود.
-
-## تصمیم‌های ثابت پروژه
-
-مرجع تصمیم‌های محصولی و مدل داده در [سند معماری داده و دامنه](docs/PRODUCT_DATA_STRATEGY.md) ثبت شده است. این پروژه قرار است در آینده پنل مدیریت، ربات تلگرام و وب‌سایت فروشگاهی را روی یک دیتابیس مرکزی و کاتالوگ مشترک پشتیبانی کند.
+GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌کند. مرورگر مستقیماً به D1 وصل نمی‌شود؛ دسترسی به داده‌ها فقط از مسیر Worker انجام خواهد شد.
 
 ## وضعیت فعلی
-- داشبورد و صفحه محصولات دیگر داده نمونه نمایش نمی‌دهند؛ تا اتصال API حالت انتظار داده واقعی نشان می‌دهند.
-- صفحات دامنه‌ای فروش، انبار، خرید، مشتریان، مالی، گزارش‌ها و تنظیمات به‌صورت اسکلت ایجاد شده‌اند.
-- کلاینت API سمت Frontend آماده اتصال به Worker است.
-- Worker و routeهای نسخه ۱ ایجاد شده‌اند؛ به‌جز `/health` سایر endpointها فعلاً پاسخ 501 می‌دهند.
-- binding Worker به D1 موجود تنظیم شده، اما اتصال عملیاتی و queryهای واقعی هنوز پس از بررسی schema و احراز هویت انجام می‌شوند.
-- هیچ migration یا تغییری روی دیتابیس زنده اعمال نشده است.
 
-## ساختار
+- اسکلت پنل و Worker ایجاد شده است.
+- صفحات داشبورد و محصولات داده ساختگی نمایش نمی‌دهند.
+- binding دیتابیس در تنظیمات Worker تعریف شده، اما اتصال عملیاتی هنوز تکمیل نشده است.
+- endpointهای داده واقعی و احراز هویت هنوز پیاده‌سازی نشده‌اند.
+- هیچ migration یا تغییر نوشتنی روی دیتابیس زنده اجرا نشده است.
+- ابتدا باید schema واقعی، indexها، triggerها و رفتار ربات فعلی بررسی شوند.
+
+## نقشه فایل‌ها و مسئولیت‌ها
+
 ```text
-.github/workflows/  انتشار خودکار GitHub Pages
-docs/               معماری، قرارداد API، داده، حسابداری و نقشه راه
-src/components/     اجزای مشترک رابط
-src/config/         تنظیمات عمومی Frontend
-src/lib/api/        کلاینت و endpointهای API
-src/lib/format/     قالب‌بندی تاریخ و مبلغ
-src/modules/        مدل‌های دامنه و کاتالوگ بخش‌ها
-src/pages/          صفحات ماژولار
-worker/src/         Worker، routes، middleware، repositories و validation
-tests/              برنامه آزمون‌ها
+.github/workflows/
+  deploy-pages.yml       build و انتشار خودکار GitHub Pages
+
+docs/
+  ARCHITECTURE.md        نمای معماری و ارتباط اجزای سامانه
+  API_CONTRACT.md        قرارداد مسیرها و پاسخ‌های API
+  DATA_MODEL.md          مدل مفهومی داده
+  PRODUCT_DATA_STRATEGY.md تصمیم‌های محصول، کاتالوگ و داده
+  ACCOUNTING_RULES.md    قواعد و ملاحظات حسابداری
+  DEPLOYMENT.md          راهنمای استقرار
+  ROADMAP.md             چک‌لیست مرحله‌ای توسعه
+  SECURITY_AND_NEXT_STEPS.md
+                         مرجع اصلی ادامه کار، امنیت، وضعیت و گام بعدی
+
+src/
+  App.jsx                پوسته اصلی، مسیریابی و چیدمان پنل
+  main.jsx               نقطه ورود React
+  styles.css             استایل‌های سراسری
+  components/            اجزای مشترک رابط کاربری
+  config/app.js          تنظیمات عمومی Frontend؛ بدون secret
+  lib/api/
+    client.js            کلاینت ارتباط با Worker
+    endpoints.js         تعریف مسیرهای API سمت Frontend
+  lib/constants/         ثابت‌های عمومی رابط
+  lib/format/            قالب‌بندی تاریخ و مبلغ
+  modules/
+    registry.js          فهرست و مشخصات ماژول‌های پنل
+    */model.js           مدل و توابع کمکی هر دامنه
+  pages/                 صفحه‌های مستقل هر بخش پنل
+
+worker/
+  wrangler.toml          نام Worker، متغیرهای عمومی و binding دیتابیس
+  package.json           وابستگی‌ها و فرمان‌های Worker
+  README.md              راهنمای فنی Worker و تنظیمات Cloudflare
+  src/
+    index.js             ورودی Worker
+    router.js            مسیریابی درخواست‌ها
+    middleware/          میان‌افزارهای مشترک مانند CORS
+    routes/               handlerهای مسیرهای API
+    repositories/         لایه دسترسی به داده و queryها
+    validation/           اعتبارسنجی ورودی‌ها
+    utils/                پاسخ‌ها و ابزارهای مشترک
+
+tests/
+  README.md               وضعیت و برنامه آزمون‌ها
+
+index.html                سند HTML اصلی Vite
+package.json              وابستگی‌ها و فرمان‌های Frontend
+vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
+.env.example              نمونه تنظیمات عمومی؛ هیچ secret واقعی در آن قرار نگیرد
 ```
 
-## اجرای Frontend
-```bash
-npm install
-npm run dev
-npm run build
-npm run preview
-```
+## مستندات مهم
 
-## راه‌اندازی GitHub Pages
-1. در Settings مخزن به Pages برو.
-2. بخش Build and deployment را روی **GitHub Actions** قرار بده.
-3. workflow با هر push به شاخه `main` پروژه را build و منتشر می‌کند.
-4. آدرس مورد انتظار: `https://abbasaghebaty.github.io/monitoring-shoma-site/`
+برای ادامه توسعه، به‌خصوص اگر گفتگو یا محیط کاری جدیدی شروع شد، ابتدا فایل **[SECURITY_AND_NEXT_STEPS.md](docs/SECURITY_AND_NEXT_STEPS.md)** را بخوان. این فایل مرجع وضعیت فعلی، تصمیم‌های امنیتی و ترتیب دقیق کارهای باقی‌مانده است.
 
-چون مخزن از نوع Project Pages است، مقدار `base` در `vite.config.js` برابر `/monitoring-shoma-site/` است. در صورت تغییر نام مخزن، این مقدار هم باید تغییر کند.
+تصمیم‌های ثابت درباره دامنه محصول و مدل داده در [PRODUCT_DATA_STRATEGY.md](docs/PRODUCT_DATA_STRATEGY.md) نگهداری می‌شوند و چک‌لیست کلی توسعه در [ROADMAP.md](docs/ROADMAP.md) است.
 
-## اتصال API
-در `.env.example` فقط origin عمومی Worker تعریف شده است. برای توسعه محلی می‌توان آن را در `.env.local` قرار داد. مقدار `VITE_*` عمومی است و نباید حاوی secret باشد.
+## دیتابیس و سازگاری
 
-## دیتابیس موجود
-مخزن ربات فروشگاه: [monitoring_shoma](https://github.com/abbasaghebaty/monitoring_shoma)
+دیتابیس مرکزی فعلی با نام `shop-manager` متعلق به سامانه فروشگاه است و پنل، ربات و وب‌سایت آینده باید با حفظ سازگاری از آن استفاده کنند. نام جدول‌هایی که در کد ربات دیده شده‌اند، schema کامل محسوب نمی‌شوند. پیش از هر query یا migration باید ساختار زنده و triggerها بررسی شوند.
 
-نام دیتابیس گزارش‌شده `shop-manager` و binding آن `DB` است. جداولی از جمله `products`, `purchases`, `purchase_items`, `sales`, `sale_items`, `payments`, `debts`, `customers` و `shortages` در کد ربات دیده شده‌اند؛ این فهرست schema کامل نیست. پیش از query باید migrationها، ستون‌ها، کلیدها و triggerها بررسی شوند. شناسه D1 در تنظیمات Worker از تنظیمات Worker ربات فروشگاه برداشته شده است؛ با این حال قبل از deploy باید در پنل Cloudflare تطبیق داده شود.
+## اصول غیرقابل‌چشم‌پوشی
 
-## اصول امنیت و صحت داده
-- شناسه دیتابیس، توکن و secret در Frontend یا Git ذخیره نشود.
-- CORS به‌تنهایی احراز هویت نیست؛ قبل از نمایش اطلاعات خصوصی باید احراز هویت و نقش‌ها پیاده‌سازی شوند.
-- عملیات فروش باید اتمیک و همراه اقلام، پرداخت‌ها و گردش موجودی ثبت شود.
-- داده نمایشی نباید با داده واقعی اشتباه گرفته شود.
-- سود تقریبی فعلی ربات، سود خالص حسابداری محسوب نمی‌شود.
-- جزئیات در `docs/` و `worker/README.md` آمده است.
+- هیچ secret، توکن ربات یا کلید مدیریتی در Frontend، Git یا متغیرهای `VITE_*` قرار نگیرد.
+- CORS جای احراز هویت و مجوز دسترسی را نمی‌گیرد.
+- هر endpoint خصوصی باید در خود Worker هویت و مجوز کاربر را بررسی کند.
+- گزارش‌های مشتق‌شده از داده خام محاسبه شوند؛ منبع حقیقت، سوابق عملیاتی باشند.
+- تغییرات دیتابیس باید افزایشی، مستند، قابل بازبینی و سازگار با ربات فعلی باشند.
+- حذف یا اصلاح سوابق مالی باید قابل ردیابی باشد.
+
+## انتشار
+
+Frontend با GitHub Actions از شاخه `main` روی GitHub Pages منتشر می‌شود. تنظیمات build در `vite.config.js` و workflow در `.github/workflows/deploy-pages.yml` قرار دارند.
+
+Worker از طریق تنظیمات و ابزارهای Cloudflare منتشر می‌شود؛ راهنمای آن در [worker/README.md](worker/README.md) است. روند این پروژه بر پایه GitHub و Cloudflare Dashboard است و نباید اجرای محلی یا ترمینال را پیش‌فرض بگیریم.
