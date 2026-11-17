@@ -6,7 +6,7 @@
 **مخزن:** `abbasaghebaty/monitoring-shoma-site`  
 **شاخه اصلی:** `main`  
 **Frontend:** GitHub Pages  
-**Backend:** Cloudflare Worker با نام `shoma-api`  
+**Backend:** Cloudflare Worker با نام دقیق `monitoring-shoma-site` (مطابق مقدار `name` در `worker/wrangler.toml`)  
 **Database:** D1 با نام `shop-manager` و binding برابر `DB`
 
 ---
@@ -125,7 +125,7 @@
 
 1. وضعیت واقعی مخزن ربات فروشگاه و Worker آن را بررسی کن.
 2. binding و database ID را در Cloudflare Dashboard با تنظیمات ربات تطبیق بده.
-3. Worker پنل را از مسیر Cloudflare Dashboard یا روش آنلاین مورد استفاده کاربر منتشر کن؛ کاربر محیط محلی/ترمینال ندارد و نباید دستورات محلی را پیش‌فرض گرفت.
+3. Worker پنل را با نام دقیق `monitoring-shoma-site` (مطابق `name` در `worker/wrangler.toml`) از مسیر Cloudflare Dashboard یا روش آنلاین مورد استفاده کاربر منتشر کن؛ کاربر محیط محلی/ترمینال ندارد و نباید دستورات محلی را پیش‌فرض گرفت.
 4. اگر endpoint موقت schema inspection استفاده می‌شود، secret را فقط در Cloudflare Secrets تنظیم کن؛ مقدار secret هرگز در چت، Git یا Frontend قرار نگیرد.
 5. خروجی metadata شامل جدول‌ها، ستون‌ها، indexها و triggerها را بگیر. خروجی باید فاقد داده واقعی مشتریان، فروش و کارکنان باشد.
 6. queryهای ربات و منطق triggerهای موجود را بررسی کن.
