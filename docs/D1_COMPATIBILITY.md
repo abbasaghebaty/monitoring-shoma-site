@@ -2,103 +2,138 @@
 
 ## تصمیم قطعی
 
-دیتابیس فعلی `shop-manager` مرجع داده است. ساختار آن در این فاز تغییر نمی‌کند؛ نه برای سازگاری با کد قدیمی ربات و نه برای ساده‌کردن API سایت.
+دیتابیس فعلی `shop-manager` مرجع داده است. ساختار آن تغییر نمی‌کند تا با کد قدیمی هماهنگ شود. اصلاح فقط در کد ربات، Worker و Frontend انجام می‌شود.
 
-جهت تطبیق فقط این است:
+- هیچ جدول، ستون، index یا trigger جدیدی برای سازگاری با query قدیمی اضافه نمی‌شود.
+- هیچ جدول یا trigger موجودی حذف یا بازنویسی نمی‌شود.
+- داده‌های عملیاتی برای تست تغییر نمی‌کنند.
+- Frontend فقط از API Worker استفاده می‌کند؛ اتصال مستقیم مرورگر به D1 ممنوع است.
 
-1. queryها و repositoryهای ربات با schema زنده هماهنگ شوند.
-2. repositoryها و routeهای Worker با همان schema هماهنگ شوند.
-3. Frontend فقط قرارداد API Worker را مصرف کند.
-4. هیچ جدول، ستون، trigger یا داده‌ای برای برگرداندن مدل قدیمی ساخته، حذف یا تغییر داده نشود.
+این snapshot بر اساس خروجی کامل `sqlite_master` و PRAGMAهایی است که در 2026-11-17 ارسال شد. `_cf_KV` و `sqlite_sequence` جداول سیستمی/زیرساختی‌اند و جزو مدل دامنه فروشگاه نیستند.
 
-این سند snapshot کامل schema نیست؛ فقط واقعیت‌هایی را ثبت می‌کند که در خروجی‌های بررسی‌شده تا 2026-11-17 تأیید شده‌اند. موارد نامعلوم عمداً حدس زده نمی‌شوند.
+## Schema تأییدشده
 
-## ساختارهای تأییدشده
+### `products`
+
+| ستون | نوع | قاعده |
+|---|---|---|
+| `product_id` | TEXT | PRIMARY KEY |
+| `name` | TEXT | NOT NULL |
+| `unit` | TEXT | NOT NULL، پیش‌فرض `'عدد'` |
+| `package_quantity` | INTEGER | nullable |
+| `weight` | REAL | nullable |
+| `weight_unit` | TEXT | nullable |
+| `description` | TEXT | nullable |
+| `created_at` | TEXT | NOT NULL، پیش‌فرض `datetime('now')` |
+
+**نکته:** شناسه محصول رشته‌ای است؛ فرض عددی بودن شناسه و `products.id` اشتباه است. ستون‌های قیمت، موجودی و وضعیت فعال در این جدول وجود ندارند.
 
 ### `product_prices`
 
 | ستون | نوع | قاعده |
 |---|---|---|
-| `product_id` | TEXT | کلید اصلی |
-| `purchase_price` | INTEGER | NOT NULL، پیش‌فرض 0 |
-| `sell_price` | INTEGER | NOT NULL، پیش‌فرض 0 |
-| `consumer_price` | INTEGER | NOT NULL، پیش‌فرض 0 |
-| `market_price` | INTEGER | NOT NULL، پیش‌فرض 0 |
+| `product_id` | TEXT | PRIMARY KEY، FK به `products.product_id` |
+| `purchase_price` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
+| `sell_price` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
+| `consumer_price` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
+| `market_price` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
 | `updated_at` | TEXT | NOT NULL، پیش‌فرض `datetime('now')` |
 
 ### `inventory`
 
 | ستون | نوع | قاعده |
 |---|---|---|
-| `product_id` | TEXT | کلید اصلی |
-| `quantity` | INTEGER | NOT NULL، پیش‌فرض 0 |
+| `product_id` | TEXT | PRIMARY KEY، FK به `products.product_id` |
+| `quantity` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
 | `updated_at` | TEXT | NOT NULL، پیش‌فرض `datetime('now')` |
-
-هر دو جدول به `products.product_id` با رفتار `NO ACTION` در حذف و به‌روزرسانی کلید خارجی متصل‌اند. triggerهای ایجاد محصول/قیمت/موجودی باید از snapshot کامل خوانده شوند؛ تا آن زمان منطق نوشتن محصول نباید تغییر کند.
 
 ### `sales`
 
-خروجی PRAGMA قبلی این ستون‌ها را نشان داده است:
+| ستون | نوع | قاعده |
+|---|---|---|
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT |
+| `product_id` | TEXT | NOT NULL، FK به `products.product_id` |
+| `quantity` | INTEGER | NOT NULL، CHECK > 0 |
+| `sale_date` | TEXT | NOT NULL |
+| `sale_time` | TEXT | NOT NULL |
+| `sale_channel` | TEXT | NOT NULL |
+| `purchase_price` | INTEGER | NOT NULL، snapshot |
+| `sell_price` | INTEGER | NOT NULL، snapshot |
+| `consumer_price` | INTEGER | NOT NULL، snapshot |
+| `amount_paid` | INTEGER | NOT NULL، پیش‌فرض 0، CHECK >= 0 |
+| `payment_method` | TEXT | NOT NULL |
+| `total_amount` | INTEGER | STORED generated: `quantity * sell_price` |
+| `balance_amount` | INTEGER | STORED generated: `quantity * sell_price - amount_paid` |
+| `discount_amount` | INTEGER | STORED generated: `MAX(consumer_price - sell_price, 0) * quantity` |
+| `created_at` | TEXT | NOT NULL، پیش‌فرض `datetime('now')` |
+| `customer_name` | TEXT | nullable |
 
-- `id`
-- `product_id`
-- `quantity`
-- `sale_date`
-- `sale_time`
-- `sale_channel`
-- snapshot قیمت خرید، فروش و مصرف‌کننده
-- `amount_paid`
-- `payment_method`
-- `total_amount` (ستون محاسباتی/generated)
-- `balance_amount`
-- `discount_amount`
-- `created_at`
-- `customer_name`
-
-نوع دقیق، constraintها و عبارت generated باید از خروجی کامل PRAGMA/CREATE TABLE دوباره ثبت شوند. مدل فعلی مشاهده‌شده، فروش را به‌صورت ردیف دارای `product_id` و `quantity` نگه می‌دارد؛ فرض وجود `sale_items` یا پرداخت‌های چندردیفی نباید بدون بررسی schema استفاده شود.
+هر ردیف `sales` یک محصول و تعداد آن را ثبت می‌کند؛ جدول `sale_items` وجود ندارد. قیمت‌های خرید و فروش هنگام ثبت، در خود ردیف فروش snapshot می‌شوند.
 
 ### `debts`
 
-ستون‌های تأییدشده در خروجی قبلی:
+| ستون | نوع | قاعده |
+|---|---|---|
+| `sale_id` | INTEGER | PRIMARY KEY، FK به `sales.id` |
+| `amount` | INTEGER | NOT NULL، CHECK > 0 |
+| `status` | TEXT | NOT NULL، پیش‌فرض `open`، فقط `open` یا `settled` |
+| `created_at` | TEXT | NOT NULL، پیش‌فرض `datetime('now')` |
 
-- `sale_id`
-- `amount`
-- `status`
-- `created_at`
+بدهی به فروش وصل است؛ `debts.id`، `customer_id`، `customer_name`، `paid` و `note` در این جدول وجود ندارند. نام مشتری در صورت وجود، از `sales.customer_name` می‌آید.
 
-ستون‌های `customer_name` و `paid` که در query قدیمی ربات استفاده می‌شوند، در اطلاعات فعلی تأیید نشده‌اند.
+### `customers`
 
-## ناسازگاری‌های شناخته‌شده در کد قدیمی ربات
+`id INTEGER PRIMARY KEY AUTOINCREMENT`, `name TEXT NOT NULL`, `phone TEXT`, `note TEXT`, `created_at TEXT NOT NULL DEFAULT datetime('now')`.
 
-فایل `src/db/shop.js` در مخزن `monitoring-shoma-bot` هنوز فرض‌های قدیمی زیر را دارد:
+در `sales` فعلی `customer_id` وجود ندارد؛ ارتباط مستقیم مشتری با فروش از طریق شناسه مشتری در schema تعریف نشده است.
 
-- `products.id`, `purchase_price`, `sell_price`, `consumer_price`, `stock`, `is_active`
-- `debts.customer_name`, `paid` و وضعیت `open`
-- جدول `payments` با `kind`, `method`, `amount`
-- جدول `sale_items` با `qty`, `line_total`, `purchase_price_snapshot`
-- `sales.debt_amount`
+### `users` و `attendance`
 
-این queryها نباید به‌عنوان قرارداد معتبر دیتابیس تلقی شوند. باید با schema زنده بازنویسی شوند، نه اینکه دیتابیس به عقب برگردد. بخش حضور و غیاب از جداول `users` و `attendance` جداست و تا وقتی schema آن‌ها تأیید نشده، نباید تغییر کند.
+- `users`: `telegram_id` (INTEGER PRIMARY KEY)، `full_name` (TEXT NOT NULL)، `username`، `role` (یکی از owner/manager/employee)، `is_active` (پیش‌فرض 1)، `created_at`.
+- `attendance`: `id` (INTEGER PRIMARY KEY AUTOINCREMENT)، `telegram_id` (FK به users)، `check_in` (TEXT NOT NULL)، `check_out`، `duration_minutes`، `created_at`.
 
-## مواردی که هنوز برای پیاده‌سازی لازم‌اند
+این دو جدول توسط کد حضور و غیاب ربات استفاده می‌شوند؛ queryهای سازگار آن بخش نباید بی‌دلیل تغییر کنند.
 
-قبل از بازنویسی کامل repositoryهای فروشگاه و فعال‌کردن routeها، snapshot کامل و جاری این موارد لازم است:
+## Triggerها و قواعد عملیاتی تأییدشده
 
-- `CREATE TABLE` و `PRAGMA table_info` همه جدول‌ها
-- تمام foreign keyها
-- تمام indexها و triggerها
-- تعریف دقیق generated columns
-- وجود یا عدم وجود جدول‌های `payments`, `sale_items`, `purchases`, `purchase_items`, `customers`, `shortages`
-- queryهای نوشتنی ربات و اثر triggerها روی فروش، قیمت و موجودی
+- `trg_product_initialize`: پس از درج محصول، یک ردیف موجودی با مقدار صفر و یک ردیف قیمت با مقادیر پیش‌فرض ایجاد می‌کند.
+- `trg_sales_check_stock`: قبل از درج فروش، موجودی کافی را کنترل می‌کند؛ در غیر این صورت `INSUFFICIENT_STOCK`.
+- `trg_sales_update_stock`: پس از درج فروش، موجودی را به اندازه `quantity` کم می‌کند.
+- `trg_sales_create_debt`: اگر `amount_paid < total_amount` باشد، بدهی متناظر را در `debts` می‌سازد.
+- `trg_sales_prevent_update` و `trg_sales_prevent_delete`: سوابق فروش را immutable می‌کنند.
+- `trg_inventory_updated_at` و `trg_prices_updated_at`: زمان به‌روزرسانی را مدیریت می‌کنند.
+- indexهای attendance: `idx_attendance_open` و `idx_attendance_user`.
 
-تا تکمیل این snapshot، عملیات نوشتنی فروشگاه متوقف/غیرفعال باقی می‌مانند. هیچ migration، ALTER، DROP، UPDATE یا DELETE برای سازگارکردن کد اجرا نمی‌شود.
+## ناسازگاری‌های قطعی کد قدیمی ربات
 
-## ترتیب پیاده‌سازی
+فایل `monitoring-shoma-bot/src/db/shop.js` و handlerهای فروشگاه هنوز فرض‌های قدیمی دارند:
 
-1. ثبت snapshot کامل schema بدون خواندن ردیف‌های واقعی مشتریان یا فروش.
-2. بازنویسی repositoryهای ربات و تست queryها با همان D1، بدون تغییر schema.
-3. ساخت repositoryهای Worker بر مبنای همان ستون‌ها و قواعد.
-4. تکمیل احراز هویت و مجوزسنجی طبق `SECURITY_AND_NEXT_STEPS.md`.
-5. فعال‌سازی API فقط‌خواندنی و اتصال Frontend.
-6. بازطراحی عملیات نوشتنی و تست تراکنش/trigger فقط پس از تأیید سازگاری.
+- `products.id`, `is_active`, `stock` و قیمت‌ها داخل `products`.
+- شناسه محصول عددی.
+- جدول‌های `purchases`, `purchase_items`, `sale_items`, `payments`, `shortages`.
+- ستون‌های `sales.customer_id`, `paid_amount`, `debt_amount`, `sale_type`, `note`.
+- ستون‌های `debts.id`, `customer_id`, `customer_name`, `paid`, `note`.
 
+هیچ‌یک از جدول‌های `payments`, `sale_items`, `purchases`, `purchase_items`, `shortages` در snapshot جاری وجود ندارد.
+
+### محدودیت‌هایی که نباید با راه‌حل ساختگی پنهان شوند
+
+- پرداخت چندبخشی با چند روش، در مدل فعلی فروش قابل ثبت به‌صورت چند ردیف نیست؛ فقط `amount_paid` و `payment_method` وجود دارد.
+- پرداخت جزئی بدهی بدون ledger پرداخت، قابل ردیابی نیست. تغییر مقدار بدهی برای تقلید از پرداخت، تاریخچه را از بین می‌برد.
+- سابقه خرید در جدول مستقل ثبت نمی‌شود؛ افزایش موجودی به‌تنهایی نباید به‌عنوان «ثبت خرید کامل» معرفی شود.
+- جدول کسری موجودی وجود ندارد؛ گزارش کسری فعلی نباید از جدول فرضی خوانده شود.
+- چون فروش immutable است، اصلاح یا حذف فروش از مسیر UPDATE/DELETE مجاز نیست.
+
+تا زمانی که قابلیت‌های بالا در قرارداد موجود دیتابیس پشتیبانی نمی‌شوند، باید در UI/ربات غیرفعال یا صریحاً به‌عنوان پشتیبانی‌نشده معرفی شوند؛ نه اینکه جدول جدید ساخته شود.
+
+## قرارداد تطبیق کد
+
+1. queryهای ربات با `products.product_id`، `product_prices` و `inventory` بازنویسی شوند.
+2. درج محصول فقط در `products` انجام شود و trigger ردیف‌های قیمت و موجودی را بسازد.
+3. تغییر قیمت در `product_prices` انجام شود؛ موجودی فقط در `inventory`.
+4. درج فروش مطابق ستون‌های واقعی `sales` انجام شود و triggerها موجودی و بدهی را مدیریت کنند؛ کد نباید همان کار را دوباره انجام دهد.
+5. repositoryهای Worker دقیقاً همین مدل را مصرف کنند.
+6. routeهای خصوصی تا تکمیل auth و permission طبق `SECURITY_AND_NEXT_STEPS.md` داده برنگردانند.
+7. هر تست نوشتنی روی محیط آزمایشی جداگانه انجام شود؛ از داده زنده برای تست استفاده نشود.
+
+**ممنوع:** `ALTER`, `DROP`, migration، ساخت جدول جایگزین، حذف/تغییر trigger یا بازنویسی داده زنده برای سازگاری با کد قدیمی.
