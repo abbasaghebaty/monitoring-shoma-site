@@ -1,46 +1,42 @@
 # قرارداد API نسخه ۱
 
-## قالب پاسخ
+## پاسخ‌ها
+موفق: { "ok": true, "data": ... }
+خطا: { "ok": false, "error": { "code": "...", "message": "..." } }
 
-موفق:
-`{ "ok": true, "data": ... }`
+همه پاسخ‌های خصوصی Cache-Control: no-store دارند. مرورگر نشست را در Authorization: Bearer <token> می‌فرستد.
 
-خطا:
-`{ "ok": false, "error": { "code": "...", "message": "..." } }`
+## احراز هویت
+- POST /api/v1/auth/request-otp — body: { "telegramId": "..." }
+- POST /api/v1/auth/verify-otp — body: { "telegramId": "...", "code": "000000" }
+- POST /api/v1/auth/logout
+- GET /api/v1/auth/me
 
-همه مسیرهای خصوصی باید پس از پیاده‌سازی احراز هویت، نشست معتبر و مجوز مناسب را بررسی کنند.
+کد OTP پنج دقیقه اعتبار دارد و پس از پنج تلاش ناموفق حذف می‌شود. نشست حداکثر ۱۲ ساعت اعتبار دارد. نقش در هر درخواست از رکورد فعال users دوباره بررسی می‌شود.
 
-## مسیر تشخیصی موقت
-
-- GET /health — بررسی واقعی binding با `SELECT 1`؛ بدون دسترسی به داده عملیاتی
-- GET /api/v1/admin/schema — فقط metadata جدول‌ها/ستون‌ها/indexها/triggerها؛ نیازمند secret موقت و باید پس از مستندسازی schema حذف شود.
-
-## اصل تطبیق داده
-
-همه repositoryها و routeها باید مستقیماً با schema زنده `shop-manager` تطبیق داده شوند. هیچ فرضی از queryهای قدیمی ربات یا مدل مفهومی، مجوز تغییر D1 نیست. تا زمان تکمیل snapshot schema و احراز هویت، مسیرهای داده خصوصی فعال نمی‌شوند.
-
-## مسیرهای داده برنامه‌ریزی‌شده
-
+## منابع خواندنی
+- GET /health
 - GET /api/v1/dashboard/summary
-- GET /api/v1/products
-- GET /api/v1/inventory
-- GET /api/v1/sales
+- GET /api/v1/products?q=&limit=&offset=
+- GET /api/v1/inventory?q=&limit=&offset=
+- GET /api/v1/sales?from=&to=&channel=&limit=&offset=
 - GET /api/v1/sales/:id
-- GET /api/v1/purchases
-- GET /api/v1/customers
-- GET /api/v1/debts
-- GET /api/v1/shortages
-- GET /api/v1/attendance
-- GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD&channel=...
+- GET /api/v1/debts?status=open|settled&limit=&offset=
+- GET /api/v1/customers?q=&limit=&offset=
+- GET /api/v1/attendance?from=&to=&limit=&offset=
+- GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD&channel=
 
-گزارش‌ها از رویدادهای خام در زمان درخواست محاسبه می‌شوند؛ summaryها به‌عنوان داده مستقل در D1 ذخیره نمی‌شوند.
+## مجوز
+- owner و manager: منابع مدیریتی خواندنی
+- employee: فقط attendance خودش
+- هر مسیر داده بدون نشست معتبر رد می‌شود.
+- نقش یا شناسه کاربر از Frontend برای تعیین مجوز پذیرفته نمی‌شود.
 
-## عملیات نوشتن آینده
+## موارد خارج از schema
+API خرید، تأمین‌کننده، هزینه، invoice چندقلمی، ledger پرداخت و تاریخچه پرداخت بدهی در این نسخه وجود ندارد. جدول‌های متناظر در schema تأییدشده نیستند؛ نباید داده‌ای جعل شود.
 
-- POST/PATCH /api/v1/products
-- POST /api/v1/sales
-- POST /api/v1/purchases
-- POST /api/v1/customers
-- POST /api/v1/attendance
-
-این مسیرها تا زمان طراحی احراز هویت، مجوز، idempotency، تراکنش اتمیک و سازگاری با ربات فعال نخواهند شد.
+## اصول داده
+- محصولات از products و join با product_prices و inventory خوانده می‌شوند.
+- فروش از sales و بدهی از debts.sale_id خوانده می‌شود.
+- attendance فقط SELECT است و هیچ write endpoint برای آن وجود ندارد.
+- هیچ migration یا تغییر D1 در این شاخه انجام نمی‌شود.
