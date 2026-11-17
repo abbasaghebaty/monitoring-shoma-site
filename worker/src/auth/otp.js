@@ -96,7 +96,7 @@ export async function verifyOtp(request, env) {
     await env.SITE_AUTH_KV.delete(key);
     return json({ ok: false, error: { code: "INVALID_OTP", message: "کد ورود معتبر نیست یا منقضی شده است." } }, 401);
   }
-  const expected = await sha256(`${telegramId}:${code}:${env.OTP_PEPPER || env.BOT_TOKEN}`);
+  const expected = await sha256(`${telegramId}:${code}:${env.OTP_PEPPER}`);
   if (expected !== record.hash) {
     record.attempts += 1;
     await env.SITE_AUTH_KV.put(key, JSON.stringify(record), { expirationTtl: OTP_TTL });
