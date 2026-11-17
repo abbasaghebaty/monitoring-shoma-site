@@ -3,12 +3,14 @@ main = "src/index.js"
 compatibility_date = "2026-11-17"
 
 [vars]
-APP_ENV = "development"
-# Configure ALLOWED_ORIGINS in Worker variables, not in frontend code.
-# Add the GitHub Pages origin after confirming the repository Pages URL.
+APP_ENV = "production"
+ALLOWED_ORIGINS = "https://abbasaghebaty.github.io"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "shop-manager"
-database_id = "SET_EXISTING_D1_DATABASE_ID"
-# Do not run migrations from this starter against the live shop database.
+database_id = "4e406079-a02f-4412-9167-57ca03b29f85"
+
+# Temporary secret required only for the schema inspection endpoint:
+# npx wrangler secret put SCHEMA_INSPECTION_TOKEN
+# Remove it after the schema has been documented and API implementation is verified.
