@@ -6,8 +6,10 @@ export const APP_CONFIG = {
   currency: "تومان",
   locale: "fa-IR",
   timeZone: "Asia/Tehran",
-  // GitHub Actions may override this with VITE_API_BASE_URL.
-  // Keep a verified production fallback so the Pages site never calls its own static origin.
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL,
-  environment: import.meta.env.VITE_APP_ENV || "development",
+  // Production Pages builds must always call the verified Cloudflare Worker.
+  // VITE_API_BASE_URL is intentionally limited to non-production builds.
+  apiBaseUrl: import.meta.env.PROD
+    ? PRODUCTION_API_BASE_URL
+    : (import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL),
+  environment: import.meta.env.VITE_APP_ENV || (import.meta.env.PROD ? "production" : "development"),
 };
