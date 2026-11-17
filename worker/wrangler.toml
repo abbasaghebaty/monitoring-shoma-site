@@ -17,9 +17,9 @@ id = "0be86a76d3644d4b87b8566bfe494bf2"
 
 # ...
 [observability.logs]
-enabled = true
+enabled = false
 invocation_logs = true
-persist = true
+
 # ...
 
 
