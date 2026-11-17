@@ -15,6 +15,14 @@ database_id = "4e406079-a02f-4412-9167-57ca03b29f85"
 binding = "SITE_AUTH_KV"
 id = "0be86a76d3644d4b87b8566bfe494bf2"
 
+# ...
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+# ...
+
+
 # Required Cloudflare Worker secrets (set in Dashboard; never commit values):
 # BOT_TOKEN   - bot token for sending OTP messages 
 # OTP_PEPPER  - independent random secret used to hash OTP values
