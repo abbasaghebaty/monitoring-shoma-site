@@ -4,9 +4,15 @@ import { json } from "./utils/response.js";
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
-    if (origin && !isAllowedOrigin(origin, env)) return json({ ok: false, error: { code: "ORIGIN_NOT_ALLOWED", message: "مبدأ درخواست مجاز نیست." } }, 403);
+    const requestPath = new URL(request.url).pathname;
+    console.log("SITE_API_INCOMING", { method: request.method, path: requestPath, hasOrigin: Boolean(origin) });
+    if (origin && !isAllowedOrigin(origin, env)) {
+      console.warn("SITE_API_ORIGIN_REJECTED", { path: requestPath });
+      return json({ ok: false, error: { code: "ORIGIN_NOT_ALLOWED", message: "مبدأ درخواست مجاز نیست." } }, 403);
+    }
     if (request.method === "OPTIONS") {
       if (!isAllowedOrigin(origin, env)) return new Response(null, { status: 403 });
+      console.log("SITE_API_PREFLIGHT_OK", { path: requestPath });
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
     try {
