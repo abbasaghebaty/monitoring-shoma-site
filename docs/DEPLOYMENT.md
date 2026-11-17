@@ -16,4 +16,6 @@
 
 ## Worker
 
+نام Worker این پروژه دقیقاً `monitoring-shoma-site` است؛ این نام از مقدار `name` در `worker/wrangler.toml` گرفته می‌شود. هنگام تنظیم Secrets، بررسی Deploy و دریافت آدرس API در Cloudflare Dashboard، همین Worker را انتخاب کن. نام دیگری مانند `shoma-api` برای این پروژه استفاده نمی‌شود.
+
 مراحل اتصال D1 و تنظیم CORS در `worker/README.md` توضیح داده شده است.
