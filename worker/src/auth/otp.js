@@ -33,7 +33,7 @@ async function sendTelegramMessage(env, telegramId, text) {
 export async function requestOtp(request, env) {
   const body = await request.json().catch(() => ({}));
   const telegramId = String(body.telegramId || "").trim();
-  if (!/^\\d{5,15}$/.test(telegramId)) {
+  if (!/^\d{5,15}$/.test(telegramId)) {
     return json({ ok: false, error: { code: "INVALID_INPUT", message: "شناسه تلگرام معتبر نیست." } }, 400);
   }
 
@@ -64,7 +64,7 @@ export async function requestOtp(request, env) {
     await env.SITE_AUTH_KV.put(otpKey, JSON.stringify(record), { expirationTtl: OTP_TTL });
 
     try {
-      await sendTelegramMessage(env, telegramId, `کد ورود به پنل مدیریت فروشگاه شما: ${code}\\nاعتبار: ۵ دقیقه\\nاین کد را در اختیار دیگران قرار ندهید.`);
+      await sendTelegramMessage(env, telegramId, `کد ورود به پنل مدیریت فروشگاه شما: ${code}\nاعتبار: ۵ دقیقه\nاین کد را در اختیار دیگران قرار ندهید.`);
       // Start the resend cooldown only after Telegram confirms successful delivery.
       await env.SITE_AUTH_KV.put(cooldownKey, "1", { expirationTtl: RESEND_SECONDS });
     } catch (error) {
@@ -85,7 +85,7 @@ export async function verifyOtp(request, env) {
   const body = await request.json().catch(() => ({}));
   const telegramId = String(body.telegramId || "").trim();
   const code = String(body.code || "").trim();
-  if (!/^\\d{5,15}$/.test(telegramId) || !/^\\d{6}$/.test(code)) {
+  if (!/^\d{5,15}$/.test(telegramId) || !/^\d{6}$/.test(code)) {
     return json({ ok: false, error: { code: "INVALID_OTP", message: "کد ورود معتبر نیست یا منقضی شده است." } }, 401);
   }
   const key = `otp:${telegramId}`;
