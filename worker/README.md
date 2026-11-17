@@ -13,7 +13,7 @@
 هیچ Migration یا SQL تغییردهنده‌ای در این فاز اجرا نمی‌شود. جدول‌های users و attendance و تمام سوابق ورود و خروج باید حفظ شوند.
 
 ## احراز هویت
-- ورود با Telegram ID و OTP پنج‌دقیقه‌ای از طریق ربات
+- ورود با Telegram ID و OTP پنج‌دقیقه‌ای از طریق ربات؛ کاربر باید قبلاً ربات را باز کرده و `/start` زده باشد تا Telegram اجازه ارسال پیام خصوصی بدهد.
 - نشست ۱۲ ساعته با توکن تصادفی؛ hash نشست در KV ذخیره می‌شود
 - Binding مستقل: SITE_AUTH_KV؛ از KV ربات استفاده نکن
 - Secretهای لازم: BOT_TOKEN و OTP_PEPPER
@@ -44,7 +44,7 @@
 
 ## راه‌اندازی Cloudflare
 1. یک KV Namespace جدید بساز و ID آن را در بخش SITE_AUTH_KV فایل worker/wrangler.toml ثبت کن.
-2. Secret با نام BOT_TOKEN را برای Worker با نام `monitoring-shoma-site` تنظیم کن.
+2. Secret با نام BOT_TOKEN را برای Worker با نام `monitoring-shoma-site` تنظیم کن؛ مقدار آن باید توکن همان ربات فعال فروشگاه باشد که Webhook ربات اصلی از آن استفاده می‌کند.
 3. Secret مستقل OTP_PEPPER را برای همان Worker تنظیم کن.
 4. Worker با نام دقیق `monitoring-shoma-site` را Deploy کن؛ نام را با مقدار `name` در `wrangler.toml` تغییر نده.
 5. /health را بررسی کن.
