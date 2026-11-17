@@ -1,6 +1,8 @@
-# Shoma API Worker
+# Monitoring Shoma Site — Cloudflare Worker API
 
 این Worker لایه API بین GitHub Pages و دیتابیس D1 موجود فروشگاه است.
+
+**نام Worker:** `monitoring-shoma-site` (باید با مقدار `name` در همین پوشه و فایل `wrangler.toml` یکسان باشد).
 
 ## اتصال D1
 - D1: shop-manager
@@ -41,10 +43,10 @@
 مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد.
 
 ## راه‌اندازی Cloudflare
-1. یک KV Namespace جدید بساز و ID آن را در worker/wrangler.toml جایگزین placeholder مربوط به SITE_AUTH_KV کن.
-2. Secret با نام BOT_TOKEN را در Worker تنظیم کن.
-3. Secret مستقل OTP_PEPPER را تنظیم کن.
-4. Worker با نام shoma-api را Deploy کن.
+1. یک KV Namespace جدید بساز و ID آن را در بخش SITE_AUTH_KV فایل worker/wrangler.toml ثبت کن.
+2. Secret با نام BOT_TOKEN را برای Worker با نام `monitoring-shoma-site` تنظیم کن.
+3. Secret مستقل OTP_PEPPER را برای همان Worker تنظیم کن.
+4. Worker با نام دقیق `monitoring-shoma-site` را Deploy کن؛ نام را با مقدار `name` در `wrangler.toml` تغییر نده.
 5. /health را بررسی کن.
 
 مراحل کامل و چک‌لیست آزمون: ../docs/IMPLEMENTATION_STATUS.md
