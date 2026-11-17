@@ -112,6 +112,9 @@ export default function App() {
   const [error,setError] = useState("");
   const [query,setQuery] = useState("");
   const [refresh,setRefresh] = useState(0);
+  const [reportData,setReportData] = useState(null);
+  const [reportFrom,setReportFrom] = useState(new Date(Date.now()-29*86400000).toISOString().slice(0,10));
+  const [reportTo,setReportTo] = useState(new Date().toISOString().slice(0,10));
   const allowedNav = useMemo(()=>NAV.filter(([,key])=>user?.role !== "employee" || key === "attendance"),[user]);
   const title = NAV.find(([,key])=>key===active)?.[0] || "داشبورد";
   async function load() {
@@ -119,6 +122,7 @@ export default function App() {
     setLoading(true); setError("");
     try {
       if (active === "dashboard") { setData(await api.dashboard()); setRows([]); }
+      else if (active === "reports") { setReportData(await api.salesReport({from:reportFrom,to:reportTo})); setRows([]); }
       else {
         const config = TABLES[active];
         if (!config) { setRows([]); }
@@ -127,7 +131,7 @@ export default function App() {
     } catch(e) { setError(e.message); if(e.status===401) setUser(null); }
     finally { setLoading(false); }
   }
-  useEffect(()=>{load();},[user,active,refresh]);
+  useEffect(()=>{load();},[user,active,refresh,reportFrom,reportTo]);
   useEffect(()=>{if(active!=="dashboard"){const timer=setTimeout(load,250);return()=>clearTimeout(timer);}},[query]);
   async function logout() { try { await api.logout(); } catch {} clearAccessToken(); setUser(null); setData(null); setRows([]); }
   if (!user) return <Login onLogin={setUser}/>;
@@ -141,11 +145,12 @@ export default function App() {
     </aside>
     <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={()=>setMobile(!mobile)}><Menu/></button><div className="breadcrumb">شما <ChevronLeft size={14}/><b>{pageTitle}</b></div><div className="top-actions"><span className="api-indicator">اتصال امن فعال</span><button className="icon-button" onClick={()=>setRefresh(v=>v+1)} title="به‌روزرسانی"><RefreshCw size={17}/></button></div></header>
       <div className="content"><div className="page-title"><div><span className="eyebrow">مدیریت فروشگاه شما</span><h1>{pageTitle}</h1><p>اطلاعات زنده از دیتابیس مرکزی فروشگاه</p></div></div>
-        {active!=="dashboard" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
-        <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>
+        {active==="reports" && <div className="toolbar date-toolbar"><label>از <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>تا <input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label></div>}
+        {active!=="dashboard" && active!=="reports" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
+        <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
         {!loading&&!error&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
-        {!loading&&!error&&active==="reports"&&<div className="panel state-box">برای گزارش فروش، از صفحه فروش و فیلتر تاریخ استفاده کنید. گزارش‌های تجمیعی تکمیلی در مرحله بعد اضافه می‌شوند.</div>}
+        {!loading&&!error&&active==="reports"&&reportData&&<><div className="metrics-grid compact"><div className="metric"><div className="metric-top">تعداد فروش</div><strong>{number(reportData.totals?.sale_count)}</strong></div><div className="metric"><div className="metric-top">مبلغ کل</div><strong>{money(reportData.totals?.total_amount)}</strong></div><div className="metric"><div className="metric-top">پرداخت‌شده</div><strong>{money(reportData.totals?.paid_amount)}</strong></div><div className="metric"><div className="metric-top">مانده</div><strong>{money(reportData.totals?.balance_amount)}</strong></div></div><Table columns={[{key:"sale_date",label:"تاریخ"},{key:"sale_count",label:"تعداد فروش",render:v=>number(v)},{key:"total_amount",label:"مبلغ کل",render:v=>money(v)}]} rows={reportData.daily||[]}/></>}
       </div><footer>شما · پنل مدیریت <span>داده‌ها فقط‌خواندنی هستند</span></footer>
     </main>{mobile&&<button className="sidebar-scrim" onClick={()=>setMobile(false)} aria-label="بستن منو"/>}
   </div>;
