@@ -19,4 +19,5 @@ export const api = {
   debts: (params) => apiRequest("/api/v1/debts?" + query(params)),
   customers: (params) => apiRequest("/api/v1/customers?" + query(params)),
   attendance: (params) => apiRequest("/api/v1/attendance?" + query(params)),
+  salesReport: (params) => apiRequest("/api/v1/reports/sales?" + query(params)),
 };
