@@ -1,6 +1,6 @@
 # Shoma Dashboard
 
-پنل مدیریتی فروشگاه «شما»؛ رابط کاربری React + Vite با هدف انتشار روی Cloudflare Pages و اتصال امن به Cloudflare Workers و D1.
+پنل مدیریتی فروشگاه «شما»؛ رابط کاربری React + Vite با هدف انتشار روی github Pages و اتصال امن به Cloudflare Workers و D1.
 
 ## وضعیت فعلی
 
