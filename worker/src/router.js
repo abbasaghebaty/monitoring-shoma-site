@@ -8,7 +8,7 @@ export async function router(request, env) {
   const url = new URL(request.url);
   if (url.pathname === "/health" && request.method === "GET") {
     await env.DB.prepare("SELECT 1 AS connected").first();
-    return json({ ok: true, service: "shoma-api", environment: env.APP_ENV || "unknown", database: "connected" });
+    return json({ ok: true, service: "monitoring-shoma-site", environment: env.APP_ENV || "unknown", database: "connected" });
   }
   const auth = await authRoutes(request, env, url);
   if (auth) return auth;
