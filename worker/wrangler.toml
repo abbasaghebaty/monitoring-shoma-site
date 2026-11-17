@@ -13,7 +13,7 @@ database_id = "4e406079-a02f-4412-9167-57ca03b29f85"
 
 [[kv_namespaces]]
 binding = "SITE_AUTH_KV"
-id = "REPLACE_WITH_NEW_SITE_AUTH_KV_ID"
+id = "0be86a76d3644d4b87b8566bfe494bf2"
 
 # Required Cloudflare Worker secrets (set in Dashboard; never commit values):
 # BOT_TOKEN   - bot token for sending OTP messages
