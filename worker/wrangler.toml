@@ -1,0 +1,14 @@
+name = "shoma-api"
+main = "src/index.js"
+compatibility_date = "2026-11-17"
+
+[vars]
+APP_ENV = "development"
+# Configure ALLOWED_ORIGINS in Worker variables, not in frontend code.
+# Add the GitHub Pages origin after confirming the repository Pages URL.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shop-manager"
+database_id = "SET_EXISTING_D1_DATABASE_ID"
+# Do not run migrations from this starter against the live shop database.
