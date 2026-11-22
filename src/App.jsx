@@ -21,24 +21,25 @@ function Login({ onLogin }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [requestId, setRequestId] = useState("");
   async function requestCode(event) {
-    event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setNotice(""); setRequestId("");
     try { const result = await api.requestOtp(telegramId.trim()); setSent(true); setNotice(result.message || "اگر حساب فعال و مجاز باشد، کد ورود ارسال می‌شود."); }
-    catch (e) { setError(e.message); } finally { setBusy(false); }
+    catch (e) { setError(e.message); setRequestId(e.requestId || ""); } finally { setBusy(false); }
   }
   async function verify(event) {
     event.preventDefault(); setBusy(true); setError("");
     try {
       const result = await api.verifyOtp(telegramId.trim(), code.trim());
       setAccessToken(result.token); onLogin(result.user);
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+    } catch (e) { setError(e.message); setRequestId(e.requestId || ""); } finally { setBusy(false); }
   }
   return <main className="auth-screen" dir="rtl"><form className="auth-card" onSubmit={sent ? verify : requestCode}>
     <div className="brand-mark auth-mark">ش</div><span className="eyebrow">سامانه مدیریت فروشگاه شما</span>
     <h1>ورود امن به پنل</h1><p>برای دریافت کد یک‌بارمصرف، شناسه عددی تلگرام خود را وارد کنید. اگر قبلاً با ربات گفتگو نکرده‌اید، ابتدا ربات را در تلگرام باز کنید و /start را بزنید.</p>
     <label>Telegram ID</label><input value={telegramId} onChange={e=>setTelegramId(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="شناسه عددی تلگرام" required disabled={sent}/>
     {sent && <><label>کد ورود</label><input value={code} onChange={e=>setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="کد ۶ رقمی ارسال‌شده" required/></>}
-    {error && <div className="form-error"><AlertCircle size={16}/>{error}</div>}
+    {error && <><div className="form-error"><AlertCircle size={16}/>{error}</div>{requestId && <small className="auth-foot">کد پیگیری: {requestId}</small>}</>}
     {notice && <div className="form-notice">{notice}</div>}
     <button className="primary-button auth-submit" disabled={busy}>{busy ? "لطفاً صبر کنید..." : sent ? "تأیید و ورود" : "ارسال کد ورود"}</button>
     {sent && <button type="button" className="text-button auth-back" onClick={()=>{setSent(false);setCode("");setNotice("");setError("");}}>تغییر شناسه تلگرام</button>}
