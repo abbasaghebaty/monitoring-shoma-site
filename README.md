@@ -13,7 +13,7 @@ GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌
 
 ## تصمیم قطعی درباره دیتابیس
 
-**ساختار فعلی D1 مرجع نهایی است و در این فاز تغییر نمی‌کند.** کد ربات و Worker باید با دیتابیس موجود تطبیق داده شوند؛ نه اینکه جدول‌ها یا ستون‌های D1 برای سازگاری با queryهای قدیمی تغییر کنند. جزئیات و ناسازگاری‌های شناخته‌شده در [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) ثبت می‌شوند.
+**Schema عملیاتی فعلی D1 مرجع نهایی است و در این فاز بازنویسی نمی‌شود.** Migration افزایشی Audit کالا در شاخه feature تعریف شده، اما روی Production اجرا نشده است. کد ربات و Worker باید با دیتابیس موجود تطبیق داده شوند؛ نه اینکه جدول‌ها یا ستون‌های D1 برای سازگاری با queryهای قدیمی تغییر کنند. جزئیات و ناسازگاری‌های شناخته‌شده در [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) ثبت می‌شوند.
 
 ## وضعیت فعلی
 
@@ -39,7 +39,6 @@ docs/
   D1_COMPATIBILITY.md    واقعیت‌های تأییدشده و تطبیق کد با D1 زنده
   PRODUCT_DATA_STRATEGY.md تصمیم‌های محصول، کاتالوگ و داده
   PRODUCT_MANAGEMENT.md    قابلیت‌ها، Audit و محدودیت‌های مدیریت اجناس
-  migrations/               Migrationهای افزایشی Worker؛ فقط پس از بازبینی و تأیید اجرا شوند
   ACCOUNTING_RULES.md    قواعد و ملاحظات حسابداری
   DEPLOYMENT.md          راهنمای استقرار
   ROADMAP.md             چک‌لیست مرحله‌ای توسعه
@@ -65,6 +64,7 @@ src/
 
 worker/
   wrangler.toml          نام Worker، متغیرهای عمومی و binding دیتابیس
+  migrations/             Migrationهای افزایشی؛ اجرای Production فقط با تأیید جداگانه
   package.json           وابستگی‌ها و فرمان‌های Worker
   README.md              راهنمای فنی Worker و تنظیمات Cloudflare
   src/

@@ -19,7 +19,7 @@
 
 ## 2. وضعیت واقعی فعلی؛ قبل از ادامه دوباره بررسی شود
 
-وضعیت اجرایی به‌روز و مراحل باقی‌مانده در [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) ثبت می‌شود. کد فعلی در شاخه feat/secure-live-d1-dashboard قرار دارد و تا زمان merge/Deploy، نسخه main و Worker منتشرشده را تغییر نداده است.
+وضعیت اجرایی به‌روز و مراحل باقی‌مانده در [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) ثبت می‌شود. کد قبلی در شاخه feat/secure-live-d1-dashboard قرار داشت؛ تغییرات مدیریت اجناس و اصلاحات این فاز در شاخه feat/admin-product-management قرار دارند و تا زمان merge/Deploy، نسخه main و Worker منتشرشده را تغییر نداده است.
 
 - [x] مخزن Frontend و Worker از هم تفکیک شده‌اند.
 - [x] GitHub Pages و binding D1 در پیکربندی تعریف شده‌اند.
@@ -27,7 +27,7 @@
 - [x] ورود OTP تلگرام، نشست Bearer و کنترل نقش در شاخه توسعه پیاده‌سازی شده‌اند.
 - [x] APIهای خواندنی محصولات، موجودی، فروش، بدهی، مشتریان، حضور و غیاب، داشبورد و گزارش فروش پیاده‌سازی شده‌اند.
 - [x] Frontend به API متصل شده و حالت‌های loading/error/empty دارد.
-- [x] هیچ migration یا SQL تغییردهنده‌ای اجرا نشده است.
+- [x] هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نشده است؛ Migration افزایشی Audit فقط در دیتابیس SQLite آزمایشی تست شده است.
 - [ ] ساخت KV مستقل، تنظیم Worker Secrets و Deploy نهایی هنوز انجام نشده است.
 - [ ] آزمون نهایی با داده واقعی و تأیید عدم تغییر سوابق حضور و غیاب باقی مانده است.
 
@@ -40,8 +40,10 @@
 - مسیرهای `POST /api/v1/products` و `PATCH /api/v1/products/:productId` فقط پس از `requireSession` و فقط برای نقش‌های owner/manager قابل اجرا هستند.
 - فیلدهای قابل نوشتن محدود به ستون‌های موجود `products` و `product_prices` هستند؛ شناسه محصول تغییر نمی‌کند.
 - موجودی، سوابق فروش و بدهی تغییر نمی‌کنند؛ حذف، غیرفعال‌سازی، دسته‌بندی و بارکد فعال نیستند.
-- رویدادهای `PRODUCT_CREATED` و `PRODUCT_UPDATED` با نقش عامل و شناسه کالا در Worker Logs ثبت می‌شوند. چون جدول audit log در D1 وجود ندارد، این لاگ‌ها audit دائمی محسوب نمی‌شوند.
-- **پیش از استفاده Production برای تغییر قیمت، نیاز به audit log دائمی و سیاست نگهداری/بازیابی آن باید جداگانه تعیین و تأیید شود.** این شاخه هیچ migration یا تغییر schema انجام نمی‌دهد.
+- رویدادهای CREATE/UPDATE در جدول `product_audit_log` با actor Telegram ID، product ID، مقادیر قبلی/جدید، timestamp و request ID یکتا در همان D1 batch ثبت می‌شوند.
+- Migration افزایشی `worker/migrations/0001_product_audit_log.sql` تعریف شده و فقط روی SQLite آزمایشی اجرا شده است؛ روی Production اجرا نشده است.
+- Triggerهای Audit، UPDATE/DELETE عادی را رد می‌کنند؛ مدیر دارای دسترسی DDL به Cloudflare همچنان می‌تواند Trigger یا schema را تغییر دهد.
+- قرارداد API فعلاً Idempotency-Key ندارد؛ هر درخواست HTTP جدید request ID جدید دارد.
 
 ## 3. مدل تهدید و اصول امنیت
 
