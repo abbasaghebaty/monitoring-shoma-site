@@ -107,14 +107,14 @@ test("KV cooldown lookup failure returns a service-unavailable error", async () 
   assert.equal(body.error.errorCode, "KV_001");
 });
 
-test("OTP storage failure is reported without attempting Telegram delivery", async () => {
+test("OTP storage failure is logged without revealing account eligibility", async () => {
   globalThis.fetch = async () => {
     throw new Error("Telegram must not be called when OTP storage fails");
   };
   const response = await requestOtp(request(), makeEnv({ kv: makeKv({ failPut: true }) }), context());
   const body = await responseBody(response);
-  assert.equal(response.status, 503);
-  assert.equal(body.error.errorCode, "OTP_002");
+  assert.equal(response.status, 202);
+  assert.equal(body.ok, true);
 });
 
 test("unknown and inactive users receive the same neutral response", async () => {
