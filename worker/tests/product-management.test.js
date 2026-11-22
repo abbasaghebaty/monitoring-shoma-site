@@ -4,6 +4,7 @@ import { validateProductDraft } from "../src/validation/products.js";
 import { createProduct, updateProduct, listProducts } from "../src/repositories/products.js";
 import { productWriteRoutes } from "../src/routes/products.js";
 import { canManage } from "../src/auth/permissions.js";
+import { router } from "../src/router.js";
 
 function makeDb() {
   const state = { product: null, prices: null, quantity: 0, queries: [] };
@@ -123,4 +124,19 @@ test("manager product creation returns the persisted D1 record", async () => {
   assert.equal(response.status,201);
   assert.equal(body.data.product.product_id,"P-300");
   assert.equal(body.data.product.sell_price,100);
+});
+
+
+test("private product write route rejects requests without a valid session", async () => {
+  const response = await router(
+    new Request("https://worker.test/api/v1/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: "P-401", name: "کالا" }),
+    }),
+    { SITE_AUTH_KV: { async get() { return null; } } },
+  );
+  assert.equal(response.status, 401);
+  const body = await response.json();
+  assert.equal(body.error.code, "UNAUTHORIZED");
 });
