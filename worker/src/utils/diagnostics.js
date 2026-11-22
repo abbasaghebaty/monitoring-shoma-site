@@ -62,7 +62,7 @@ export async function withRequestMetadata(response, context) {
   }
 
   try {
-    const payload = await response.json();
+    const payload = await response.clone().json();
     if (payload && typeof payload === "object" && !Array.isArray(payload)) {
       payload.requestId = context.requestId;
       payload.meta = { ...(payload.meta || {}), requestId: context.requestId };
