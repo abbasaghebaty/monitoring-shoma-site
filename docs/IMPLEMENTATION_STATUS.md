@@ -32,7 +32,7 @@
 - هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نشده است. تست‌ها baseline و audit را فقط روی SQLite in-memory و D1 محلی Miniflare اجرا می‌کنند.
 
 ## محدودیت‌های آگاهانه
-1. جدول‌های users و attendance و تمام سوابق آن‌ها دست‌نخورده‌اند. Migration افزایشی فقط جدول مستقل Audit را در شاخه تعریف می‌کند و روی Production اجرا نشده است.
+1. جدول‌های users و attendance و سوابق آن‌ها در baseline حفظ شده‌اند؛ Migrationها هیچ DROP یا بازنویسی داده‌ای ندارند. وضعیت فیزیکی دیتابیس میزبانی‌شده در این مرحله بررسی نشده است.
 2. خریدها، تأمین‌کنندگان، هزینه‌ها، فاکتور چندقلمی و پرداخت چندمرحله‌ای API ندارند؛ schema فعلی آن‌ها را پشتیبانی نمی‌کند.
 3. پرداخت بدهی و اصلاح فروش فعال نیستند؛ فروش immutable است و ledger پرداخت وجود ندارد.
 4. ارتباط مستقیم customers به sales وجود ندارد؛ سایت تاریخچه خرید مشتری را جعل نمی‌کند.
@@ -70,5 +70,14 @@ Commit در شاخه توسعه به‌تنهایی به معنی Deploy نیس�
 
 ## تست‌های خودکار شاخه feature
 - Node.js 22 و `node:sqlite` برای اجرای SQLite واقعی درون‌حافظه‌ای استفاده می‌شوند.
-- CI فعلی: 40 تست موفق، شامل تست‌های auth، role UI، Trigger fixture، FK، batch rollback، CAS هم‌زمان، Audit append-only و عدم دسترسی employee.
-- fixture دستی حذف شده است؛ تست‌ها از Migrationهای واقعی مخزن استفاده می‌کنند. تطبیق دقیق Triggerهای D1 میزبانی‌شده همچنان نیازمند بررسی Dashboard است.
+- CI آخرین اجرا: 42 تست Node/SQLite و 10 تست Workers Vitest روی D1 محلی Miniflare موفق؛ Vite build نیز موفق. Run: 45041773753.
+- fixture دستی حذف شده است؛ SQLite و Miniflare هر دو فایل‌های واقعی 0000_baseline.sql و 0001_product_audit_log.sql را به‌ترتیب اجرا می‌کنند. تطبیق دقیق Triggerهای D1 میزبانی‌شده همچنان نیازمند بررسی Dashboard است.
+
+
+## وضعیت canonical schema
+
+- Migration 0000_baseline.sql دیتابیس خالی را با 9 جدول دامنه، FKها، CHECKها، indexها و Triggerهای عملیاتی می‌سازد.
+- Migration 0001_product_audit_log.sql جدول Audit و قیود JSON/operation/request_id و Triggerهای append-only را اضافه می‌کند.
+- تست‌های Worker و D1 از همین Migrationها استفاده می‌کنند؛ schema fixture دستی حذف شده است.
+- Migrationها فقط روی SQLite in-memory و D1 محلی Miniflare اجرا شده‌اند. هیچ Migration/SQL تغییردهنده‌ای روی Production اجرا نشده است.
+- Baseline با IF NOT EXISTS برای دیتابیس موجود non-destructive است، اما schema ناسازگار موجود را repair نمی‌کند؛ پیش از هر اجرای remote، schema preflight الزامی است.
