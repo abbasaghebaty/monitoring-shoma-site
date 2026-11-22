@@ -199,7 +199,7 @@ export async function requestOtp(request, env, context = null) {
       httpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : null,
       telegramErrorCode: Number.isInteger(error.telegramErrorCode) ? error.telegramErrorCode : null,
       telegramDescription: typeof error.telegramDescription === "string"
-        ? error.telegramDescription.replace(/\b\d{5,15}\b/g, "[REDACTED_ID]").slice(0, 300)
+        ? error.telegramDescription.replace(/bot\d+:[A-Za-z0-9_-]+/gi, "[REDACTED_BOT_TOKEN]").replace(/\b\d{5,15}\b/g, "[REDACTED_ID]").slice(0, 300)
         : null,
       retryAfter: Number.isInteger(error.retryAfter) ? error.retryAfter : null,
     });
