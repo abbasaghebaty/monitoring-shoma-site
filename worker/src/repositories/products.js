@@ -59,7 +59,15 @@ export async function createProduct(db, draft) {
         productId,
       ),
   ];
-  await db.batch(statements);
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    // The CAS/audit guards intentionally fail this NOT NULL constraint on stale snapshots.
+    if (/NOT NULL constraint failed: product_audit_log\.actor_telegram_id/i.test(String(error?.message || ""))) {
+      throw new ProductConflictError();
+    }
+    throw error;
+  }
   return getProduct(db, productId);
 }
 

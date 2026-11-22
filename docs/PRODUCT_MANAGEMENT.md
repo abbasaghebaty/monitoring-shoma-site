@@ -20,7 +20,9 @@
 - `product_prices`: purchase_price، sell_price، consumer_price، market_price
 - `inventory`: quantity و updated_at
 
-هنگام ایجاد، `INSERT INTO products` و به‌روزرسانی قیمت در یک `DB.batch()` انجام می‌شوند. Trigger موجود `trg_product_initialize` ردیف قیمت و موجودی صفر را ایجاد می‌کند. کد برنامه موجودی را مستقیماً تغییر نمی‌دهد.
+هنگام ایجاد، درج محصول، به‌روزرسانی ردیف قیمت ایجادشده توسط Trigger و درج Audit در یک `DB.batch()` انجام می‌شوند. Trigger موجود `trg_product_initialize` ردیف قیمت و موجودی صفر را ایجاد می‌کند. اگر درج Audit یا ردیف قیمت شکست بخورد، کل batch Rollback می‌شود. کد برنامه موجودی را مستقیماً تغییر نمی‌دهد.
+
+در ویرایش، فقط ستون‌هایی که واقعاً تغییر کرده‌اند نوشته می‌شوند. ابتدا Snapshot کامل کالا و قیمت‌ها در شرط CAS بررسی می‌شود. Audit insert نقش guard را دارد؛ شکست شرط باعث نقض NOT NULL و شکست batch می‌شود. هر UPDATE نیز guard مجزای صفرردیفی دارد. تعارض واقعی با HTTP 409 برمی‌گردد.
 
 ## عمداً غیرفعال
 
@@ -36,9 +38,11 @@
 
 ## Audit و آمادگی Production
 
-Worker برای ایجاد و ویرایش، رویداد ساختاریافته `PRODUCT_CREATED` و `PRODUCT_UPDATED` را با نقش عامل و شناسه کالا ثبت می‌کند؛ این رویدادها در Cloudflare Worker Logs هستند و **جای audit log دائمی در D1 را نمی‌گیرند**.
+Migration افزایشی `worker/migrations/0001_product_audit_log.sql` جدول `product_audit_log` را تعریف می‌کند. هر رویداد شامل actor Telegram ID، product ID، operation، مقادیر قبلی/جدید JSON، زمان UTC و request ID یکتا است. OTP، نشست، secret و اطلاعات نامرتبط ذخیره نمی‌شوند.
 
-به همین دلیل این پیاده‌سازی برای بازبینی در PR آماده است، اما پیش از فعال‌سازی نوشتن قیمت در Production باید تصمیم گرفته شود که آیا جدول audit log حداقلی لازم است یا نه. در این شاخه هیچ جدول یا migration ایجاد نشده است.
+Audit با تغییر کالا در همان D1 batch ثبت می‌شود. UPDATE و DELETE عادی توسط Trigger رد می‌شوند. درخواست HTTP جدید request ID جدید می‌گیرد؛ این API قرارداد Idempotency-Key ندارد، بنابراین retry در قالب درخواست جدید رویداد جدید می‌سازد. دسترسی privileged مستقیم به D1 همچنان قادر به تغییر schema یا حذف Triggerهاست.
+
+Migration فقط در دیتابیس SQLite آزمایشی در تست‌ها اجرا شده است؛ Production اجرا نشده و قبل از هر استفادهٔ زنده نیازمند تأیید و اجرای جداگانه است.
 
 ## API
 

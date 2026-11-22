@@ -2,6 +2,7 @@ import { json } from "../utils/response.js";
 import { AUTH_ERRORS, errorResponse, publicOtpOutcome } from "../utils/errors.js";
 import { logEvent, logFailure } from "../utils/diagnostics.js";
 import { randomOtp, randomToken, sha256 } from "./crypto.js";
+import { isValidRole } from "./permissions.js";
 
 const OTP_TTL = 300;
 const RESEND_SECONDS = 60;
@@ -131,7 +132,7 @@ export async function requestOtp(request, env, context = null) {
   try {
     setStage(context, "user_lookup");
     user = await env.DB.prepare(
-      "SELECT telegram_id, full_name, is_active FROM users WHERE telegram_id = ? LIMIT 1"
+      "SELECT telegram_id, full_name, role, is_active FROM users WHERE telegram_id = ? LIMIT 1"
     ).bind(Number(telegramId)).first();
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.DB_QUERY_FAILED.errorCode, "user_lookup", error, "D1");
@@ -148,6 +149,10 @@ export async function requestOtp(request, env, context = null) {
   }
   if (!isActive) {
     logEvent(context, "warn", "AUTH_USER_INACTIVE", { errorCode: "AUTH_002" });
+    return publicOtpOutcome();
+  }
+  if (!isValidRole(user.role)) {
+    logEvent(context, "warn", "AUTH_ROLE_REJECTED", { errorCode: "AUTH_ROLE_INVALID" });
     return publicOtpOutcome();
   }
 
@@ -303,6 +308,11 @@ export async function verifyOtp(request, env, context = null) {
   if (!user || Number(user.is_active) !== 1) {
     await safeDeleteOtp(env, key, context);
     logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "user_unavailable" });
+    return errorResponse(AUTH_ERRORS.OTP_INVALID);
+  }
+  if (!isValidRole(user.role)) {
+    await safeDeleteOtp(env, key, context);
+    logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "invalid_role" });
     return errorResponse(AUTH_ERRORS.OTP_INVALID);
   }
 

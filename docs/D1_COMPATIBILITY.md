@@ -4,7 +4,7 @@
 
 دیتابیس فعلی `shop-manager` مرجع داده است. ساختار آن تغییر نمی‌کند تا با کد قدیمی هماهنگ شود. اصلاح فقط در کد ربات، Worker و Frontend انجام می‌شود.
 
-- هیچ جدول، ستون، index یا trigger جدیدی برای سازگاری با query قدیمی اضافه نمی‌شود.
+- هیچ جدول، ستون، index یا trigger جدیدی برای سازگاری با query قدیمی اضافه نمی‌شود. Migration افزایشی `worker/migrations/0001_product_audit_log.sql` صرفاً برای Audit کالا تعریف شده و تا تأیید جداگانه نباید روی Production اجرا شود.
 - هیچ جدول یا trigger موجودی حذف یا بازنویسی نمی‌شود.
 - داده‌های عملیاتی برای تست تغییر نمی‌کنند.
 - Frontend فقط از API Worker استفاده می‌کند؛ اتصال مستقیم مرورگر به D1 ممنوع است.
@@ -137,3 +137,33 @@
 7. هر تست نوشتنی روی محیط آزمایشی جداگانه انجام شود؛ از داده زنده برای تست استفاده نشود.
 
 **ممنوع:** `ALTER`, `DROP`, migration، ساخت جدول جایگزین، حذف/تغییر trigger یا بازنویسی داده زنده برای سازگاری با کد قدیمی.
+
+## افزونهٔ افزایشی Audit کالا (شاخه PR #4)
+
+Migration جدید `worker/migrations/0001_product_audit_log.sql` یک جدول مستقل `product_audit_log` اضافه می‌کند و ساختار جدول‌های عملیاتی موجود را تغییر نمی‌دهد.
+
+- `users.telegram_id` در snapshot تأییدشده INTEGER PRIMARY KEY است؛ ستون عامل در Audit نیز INTEGER و دارای FK با `ON DELETE RESTRICT` است.
+- `products.product_id` در snapshot تأییدشده TEXT PRIMARY KEY است؛ ستون محصول در Audit نیز TEXT و دارای FK با `ON DELETE RESTRICT` است.
+- `request_id` در هر رویداد UNIQUE است؛ Worker برای هر درخواست HTTP یک UUID جدید تولید می‌کند.
+- `previous_values` برای CREATE برابر NULL و برای UPDATE یک JSON object از فیلدهای واقعاً تغییرکرده است.
+- `new_values` یک JSON object فقط از فیلدهای واقعاً تغییرکرده (یا تمام مقادیر آغازین در CREATE) است.
+- Triggerهای BEFORE UPDATE و BEFORE DELETE تغییر و حذف عادی رویدادهای Audit را رد می‌کنند.
+- Migration در PR تعریف شده، اما روی Production اجرا نشده است.
+
+### اجرای آزمایشی
+
+تست‌های SQLite از `worker/tests/fixtures/product-schema.sql` برای ساخت دیتابیس مستقل درون حافظه استفاده می‌کنند و سپس Migration را روی همان دیتابیس آزمایشی اجرا می‌کنند. تست‌ها از binding یا شناسهٔ Production استفاده نمی‌کنند.
+
+برای اجرای دستی Wrangler فقط در حالت محلی:
+
+```sh
+npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml
+```
+
+از حذف گزینهٔ `--local` خودداری کنید. دستور بالا در این فاز اجرا نشده است.
+
+### Atomicity و هم‌زمانی
+
+در UPDATE، ابتدا Audit insert با شرط EXISTS روی Snapshot کامل خوانده‌شده (فیلدهای پایه و هر چهار قیمت) انجام می‌شود. اگر Snapshot تغییر کرده یا ردیف قیمت وجود نداشته باشد، actor به NULL تبدیل می‌شود و NOT NULL باعث شکست batch می‌شود. سپس فقط ستون‌های تغییرکرده UPDATE می‌شوند؛ بعد از هر UPDATE یک guard درج صفرردیفی دارد که در صورت `changes() = 0` عمداً NOT NULL را نقض می‌کند. D1 batch همهٔ این دستورات را در یک تراکنش اجرا می‌کند؛ هر شکست، Audit و تغییرات قبلی همان batch را Rollback می‌کند.
+
+این راهبرد محافظه‌کارانه است: حتی تغییر هم‌زمان دو فیلد مستقل باعث 409 برای درخواست دوم می‌شود و کاربر باید دادهٔ تازه را بارگذاری کند. دسترسی privileged مستقیم به D1 همچنان می‌تواند schema، triggerها یا رکوردها را تغییر دهد؛ append-only بودن در برابر مدیر دارای اختیار DDL تضمین مطلق نیست.

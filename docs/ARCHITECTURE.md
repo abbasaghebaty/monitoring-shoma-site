@@ -30,3 +30,11 @@
 ## URL انتشار
 
 این مخزن یک GitHub Pages project site است؛ base فعلی در Vite برابر `/monitoring-shoma-site/` تنظیم شده است.
+
+## کنترل نقش و یکپارچگی ویرایش کالا
+
+- قرارداد نقش در Worker فقط `owner`، `manager` و `employee` است؛ OTP و middleware نشست هر دو whitelist را بررسی می‌کنند.
+- Frontend برای employee صفحه attendance را به‌عنوان صفحهٔ اولیه انتخاب می‌کند و نقش ناشناخته هیچ navigation دریافت نمی‌کند.
+- ویرایش کالا با Snapshot کامل و optimistic concurrency control انجام می‌شود؛ درخواست stale با 409 رد می‌شود.
+- ایجاد/ویرایش و Audit در یک D1 batch اتمیک هستند. Migration افزایشی در `worker/migrations` قرار دارد و در این شاخه روی Production اجرا نمی‌شود.
+- تست‌های Repository با SQLite واقعی in-memory و schema/trigger fixture انجام می‌شوند؛ این تست‌ها رفتار کامل Cloudflare D1 runtime را جایگزین نمی‌کنند.

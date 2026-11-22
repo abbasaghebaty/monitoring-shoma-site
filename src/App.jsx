@@ -3,6 +3,7 @@ import { LayoutDashboard, Package, ShoppingCart, Warehouse, Users, Wallet, Chart
 import { api } from "./lib/api/endpoints";
 import { setAccessToken, clearAccessToken } from "./lib/api/client";
 import ProductsPage from "./pages/ProductsPage";
+import { getInitialPage, getVisibleNavigation, isKnownRole } from "./modules/access";
 
 const NAV = [
   ["داشبورد", "dashboard", LayoutDashboard], ["مدیریت اجناس", "products", Package],
@@ -113,7 +114,12 @@ export default function App() {
   const [reportData,setReportData] = useState(null);
   const [reportFrom,setReportFrom] = useState(new Date(Date.now()-29*86400000).toISOString().slice(0,10));
   const [reportTo,setReportTo] = useState(new Date().toISOString().slice(0,10));
-  const allowedNav = useMemo(()=>NAV.filter(([,key])=>user?.role !== "employee" || key === "attendance"),[user]);
+  const allowedNav = useMemo(()=>getVisibleNavigation(user?.role,NAV),[user]);
+  function handleLogin(nextUser) {
+    if (!isKnownRole(nextUser?.role)) { clearAccessToken(); setUser(null); setActive("dashboard"); return; }
+    setActive(getInitialPage(nextUser.role));
+    setUser(nextUser);
+  }
   const title = NAV.find(([,key])=>key===active)?.[0] || "داشبورد";
   async function load() {
     if (!user) return;
@@ -133,7 +139,7 @@ export default function App() {
   useEffect(()=>{load();},[user,active,refresh,reportFrom,reportTo]);
   useEffect(()=>{if(active!=="dashboard"){const timer=setTimeout(load,250);return()=>clearTimeout(timer);}},[query]);
   async function logout() { try { await api.logout(); } catch {} clearAccessToken(); setUser(null); setData(null); setRows([]); }
-  if (!user) return <Login onLogin={setUser}/>;
+  if (!user || !isKnownRole(user.role)) return <Login onLogin={handleLogin}/>;
   const table = TABLES[active];
   const pageTitle = active==="dashboard"?"داشبورد مدیریتی":table?.title || title;
   return <div className="app-shell" dir="rtl">

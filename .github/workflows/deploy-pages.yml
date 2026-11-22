@@ -23,7 +23,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Test Worker utilities
+      - name: Test Worker utilities and isolated SQLite integration
         run: npm --prefix worker test
       - name: Build
         env:

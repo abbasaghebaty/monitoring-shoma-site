@@ -71,3 +71,21 @@
 
 ## نکته امنیتی
 Cloudflare KV برای مصرف OTP اتمیک تضمین نمی‌کند؛ درخواست‌های هم‌زمان ممکن است race داشته باشند. پیش از استفاده حساس، این بخش باید با Durable Object یا ذخیره‌سازی اتمیک تقویت شود. CORS و عدم استفاده از cookie، مشکل third-party cookie در GitHub Pages را دور می‌زند؛ توکن فقط در حافظه صفحه نگهداری می‌شود.
+
+## نقش‌ها، ویرایش هم‌زمان و Audit کالا
+
+- نقش‌های معتبر: `owner`، `manager` و `employee`. نقش خارج از این فهرست در OTP رد می‌شود و middleware نشست نیز مستقلاً نقش جاری دیتابیس و نشست را بررسی می‌کند.
+- ویرایش کالا فقط فیلدهای واقعاً تغییرکرده را می‌نویسد. Snapshot کامل پایه و قیمت‌ها به‌عنوان optimistic concurrency token استفاده می‌شود؛ درخواست stale پاسخ 409 می‌گیرد.
+- Audit کالا با عملیات محصول در یک D1 batch ثبت می‌شود. شکست guard یا درج Audit کل batch را Rollback می‌کند.
+- Migration افزایشی: `migrations/0001_product_audit_log.sql`.
+- تست‌ها با SQLite واقعی in-memory و schema/trigger fixture اجرا می‌شوند: `npm test`. این تست‌ها D1 runtime واقعی Cloudflare، replication یا تنظیمات Dashboard را اثبات نمی‌کنند.
+
+### اجرای Migration در محیط محلی آزمایشی
+
+فقط برای یک دیتابیس محلی/آزمایشی:
+
+```sh
+npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml
+```
+
+هرگز `--local` را حذف نکنید. این پروژه در این PR Migration را روی Production اجرا نمی‌کند. Migration تولیدی نیازمند تأیید جداگانه و backup/rollback plan است.
