@@ -2,9 +2,9 @@ import { json } from "../utils/response.js";
 import { requestOtp, verifyOtp } from "../auth/otp.js";
 import { revokeSession } from "../auth/session.js";
 import { requireSession } from "../middleware/auth.js";
-export async function authRoutes(request, env, url) {
-  if (url.pathname === "/api/v1/auth/request-otp" && request.method === "POST") return requestOtp(request, env);
-  if (url.pathname === "/api/v1/auth/verify-otp" && request.method === "POST") return verifyOtp(request, env);
+export async function authRoutes(request, env, url, context = null) {
+  if (url.pathname === "/api/v1/auth/request-otp" && request.method === "POST") return requestOtp(request, env, context);
+  if (url.pathname === "/api/v1/auth/verify-otp" && request.method === "POST") return verifyOtp(request, env, context);
   if (url.pathname === "/api/v1/auth/logout" && request.method === "POST") {
     await revokeSession(request, env);
     return json({ ok: true, data: { loggedOut: true } });
