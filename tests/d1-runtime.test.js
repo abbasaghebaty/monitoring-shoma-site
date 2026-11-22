@@ -126,6 +126,12 @@ describe("Cloudflare D1 runtime product integrity", () => {
     await expect(env.DB.prepare(
       "INSERT INTO product_audit_log (actor_telegram_id, product_id, operation, previous_values, new_values, request_id) VALUES (?, ?, 'CREATE', NULL, '{}', ?)"
     ).bind(actorTelegramId, "missing-product", id("fk-audit")).run()).rejects.toThrow();
+    await expect(env.DB.prepare(
+      "INSERT INTO users (telegram_id, full_name, role) VALUES (?, ?, 'admin')"
+    ).bind(-777, "Invalid role").run()).rejects.toThrow();
+    await expect(env.DB.prepare(
+      "INSERT INTO product_audit_log (actor_telegram_id, product_id, operation, previous_values, new_values, request_id) VALUES (?, ?, 'CREATE', NULL, '[]', ?)"
+    ).bind(actorTelegramId, "any-product", id("bad-json")).run()).rejects.toThrow();
   });
 
   it("preserves sales, stock, debt, customer and attendance query contracts", async () => {
@@ -149,6 +155,7 @@ describe("Cloudflare D1 runtime product integrity", () => {
     await env.DB.prepare("INSERT INTO attendance (telegram_id, check_in) VALUES (?, ?)").bind(actorTelegramId, "2026-11-22T08:00:00Z").run();
 
     const queryUrl = new URL("https://worker.test/api/v1");
+    expect((await listProducts(env.DB, queryUrl)).items).toHaveLength(1);
     expect((await listInventory(env.DB, queryUrl)).items).toHaveLength(1);
     expect((await listSales(env.DB, queryUrl)).items).toHaveLength(1);
     expect((await listDebts(env.DB, queryUrl)).items).toHaveLength(1);
