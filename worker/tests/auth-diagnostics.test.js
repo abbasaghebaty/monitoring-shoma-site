@@ -133,7 +133,7 @@ test("cooldown returns the neutral anti-enumeration response", async () => {
   await kv.put("otp-cooldown:123456", "1");
   const response = await requestOtp(request(), makeEnv({ kv }), context());
   assert.equal(response.status, 202);
-  assert.equal((await responseBody(response)).ok, true);
+  assert.equal((await responseBody(response)).status, "unconfirmed");
 });
 
 test("Telegram API rejection is logged internally and does not claim delivery", async () => {
