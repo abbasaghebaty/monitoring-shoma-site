@@ -167,3 +167,7 @@ npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.t
 در UPDATE، ابتدا Audit insert با شرط EXISTS روی Snapshot کامل خوانده‌شده (فیلدهای پایه و هر چهار قیمت) انجام می‌شود. اگر Snapshot تغییر کرده یا ردیف قیمت وجود نداشته باشد، actor به NULL تبدیل می‌شود و NOT NULL باعث شکست batch می‌شود. سپس فقط ستون‌های تغییرکرده UPDATE می‌شوند؛ بعد از هر UPDATE یک guard درج صفرردیفی دارد که در صورت `changes() = 0` عمداً NOT NULL را نقض می‌کند. D1 batch همهٔ این دستورات را در یک تراکنش اجرا می‌کند؛ هر شکست، Audit و تغییرات قبلی همان batch را Rollback می‌کند.
 
 این راهبرد محافظه‌کارانه است: حتی تغییر هم‌زمان دو فیلد مستقل باعث 409 برای درخواست دوم می‌شود و کاربر باید دادهٔ تازه را بارگذاری کند. دسترسی privileged مستقیم به D1 همچنان می‌تواند schema، triggerها یا رکوردها را تغییر دهد؛ append-only بودن در برابر مدیر دارای اختیار DDL تضمین مطلق نیست.
+
+### محدودهٔ اثبات تست SQLite
+
+Fixture تست یک بازسازی مستقل و حداقلی از ستون‌ها، کلیدها و رفتار Trigger محصول بر اساس snapshot مستندشده است؛ فایل DDL کامل استخراج‌شده از Production در مخزن موجود نیست. بنابراین تست‌ها رفتار واقعی SQLite، FK، CHECK، Trigger fixture، Rollback و CAS را اثبات می‌کنند، اما برابری بایت‌به‌بایت Trigger آزمایشی با Trigger فعلی Production و اجرای Cloudflare D1 را اثبات نمی‌کنند. این دو مورد نیازمند مقایسهٔ read-only در Cloudflare Dashboard هستند.

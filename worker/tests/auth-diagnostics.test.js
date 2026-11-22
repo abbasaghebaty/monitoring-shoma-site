@@ -27,7 +27,7 @@ function makeKv({ failGet = false, failPut = false, failDelete = false } = {}) {
   };
 }
 
-function makeDb(user = { telegram_id: 123456, full_name: "Test", is_active: 1 }, failure = null) {
+function makeDb(user = { telegram_id: 123456, full_name: "Test", role: "owner", is_active: 1 }, failure = null) {
   return {
     prepare() {
       return {

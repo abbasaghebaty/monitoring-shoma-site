@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getInitialPage, getVisibleNavigation, isKnownRole } from "../../src/modules/access.js";
-import { verifyOtp } from "../src/auth/otp.js";
+import { requestOtp, verifyOtp } from "../src/auth/otp.js";
 import { requireSession } from "../src/middleware/auth.js";
 import { sha256 } from "../src/auth/crypto.js";
 
@@ -87,4 +87,27 @@ test("inactive and role-mismatched sessions remain forbidden", async () => {
   };
   const access = await requireSession(new Request("https://worker.test/", { headers: { Authorization: "Bearer " + token } }), env);
   assert.equal(access.response.status, 403);
+});
+
+test("OTP request does not issue a code to an account with an unknown role", async () => {
+  const kv = makeKv();
+  let telegramCalled = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { telegramCalled = true; throw new Error("must not send OTP"); };
+  try {
+    const response = await requestOtp(new Request("https://worker.test/api/v1/auth/request-otp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId: "123456" }),
+    }), {
+      DB: { prepare() { return { bind() { return { async first() {
+        return { telegram_id: 123456, full_name: "Test", role: "admin", is_active: 1 };
+      } }; } }; } },
+      SITE_AUTH_KV: kv, OTP_PEPPER: "pepper", BOT_TOKEN: "test-token",
+    });
+    assert.equal(response.status, 202);
+    assert.equal(telegramCalled, false);
+    assert.equal(kv.values.has("otp:123456"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
