@@ -1,5 +1,5 @@
 import { json } from "../utils/response.js";
-import { AUTH_ERRORS, errorResponse, publicOtpAccepted } from "../utils/errors.js";
+import { AUTH_ERRORS, errorResponse, publicOtpOutcome } from "../utils/errors.js";
 import { logEvent, logFailure } from "../utils/diagnostics.js";
 import { randomOtp, randomToken, sha256 } from "./crypto.js";
 
@@ -123,7 +123,7 @@ export async function requestOtp(request, env, context = null) {
       errorCode: AUTH_ERRORS.OTP_RATE_LIMITED.errorCode,
       outcome: "generic_response",
     });
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
   logEvent(context, "info", "OTP_COOLDOWN_CLEAR");
 
@@ -144,11 +144,11 @@ export async function requestOtp(request, env, context = null) {
   // Do not reveal whether a Telegram ID exists or is active to the caller.
   if (!user) {
     logEvent(context, "warn", "AUTH_USER_NOT_FOUND", { errorCode: "AUTH_001" });
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
   if (!isActive) {
     logEvent(context, "warn", "AUTH_USER_INACTIVE", { errorCode: "AUTH_002" });
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
 
   let code;
@@ -162,7 +162,7 @@ export async function requestOtp(request, env, context = null) {
     };
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.OTP_GENERATION_FAILED.errorCode, "otp_generation", error, "WebCrypto");
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
 
   const otpKey = `otp:${telegramId}`;
@@ -171,7 +171,7 @@ export async function requestOtp(request, env, context = null) {
     await env.SITE_AUTH_KV.put(otpKey, JSON.stringify(record), { expirationTtl: OTP_TTL });
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_storage", error, "KV");
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
 
   try {
@@ -210,7 +210,7 @@ export async function requestOtp(request, env, context = null) {
     });
 
     // Preserve identical public behavior for unknown/inactive accounts and delivery failures.
-    return publicOtpAccepted();
+    return publicOtpOutcome();
   }
 
   try {
@@ -222,7 +222,7 @@ export async function requestOtp(request, env, context = null) {
   }
 
   logEvent(context, "info", "OTP_REQUEST_COMPLETED", { outcome: "delivery_accepted" });
-  return publicOtpAccepted();
+  return publicOtpOutcome();
 }
 
 export async function verifyOtp(request, env, context = null) {
