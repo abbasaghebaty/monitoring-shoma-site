@@ -52,7 +52,14 @@ beforeAll(async () => {
   // cloudflareTest uses the local Miniflare D1 binding from wrangler.toml.
   // The fixture and actual audit migration are executed statement-by-statement
   // because D1Database.exec() accepts newline-separated queries, not multiline SQL blocks.
-  await applyStatements(env.TEST_PRODUCT_SCHEMA_SQL);
+  const before = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  ).all();
+  if (before.results.length !== 0) throw new Error("D1 test binding must start empty; found: " + before.results.map((row) => row.name).join(", "));
+
+  await applyStatements(env.TEST_BASELINE_SQL);
+  // Baseline is intentionally safe to re-run; this catches accidental non-idempotent DDL.
+  await applyStatements(env.TEST_BASELINE_SQL);
   await applyStatements(env.TEST_AUDIT_MIGRATION_SQL);
   await env.DB.prepare(
     "INSERT INTO users (telegram_id, full_name, role, is_active) VALUES (?, ?, 'manager', 1)"
@@ -97,6 +104,48 @@ function barrierDatabase(db, expectedReaders = 2) {
 }
 
 describe("Cloudflare D1 runtime product integrity", () => {
+  it("initializes every application table from an empty D1 database using ordered migrations", async () => {
+    const tables = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    ).all();
+    expect(tables.results.map((row) => row.name)).toEqual([
+      "attendance", "customers", "debts", "inventory", "product_audit_log",
+      "product_prices", "products", "sales", "users",
+    ]);
+
+    // Verify real FK enforcement rather than relying only on PRAGMA metadata.
+    await expect(env.DB.prepare(
+      "INSERT INTO attendance (telegram_id, check_in) VALUES (?, ?)"
+    ).bind(-123456, "2026-11-22T08:00:00Z").run()).rejects.toThrow();
+    await expect(env.DB.prepare(
+      "INSERT INTO product_audit_log (actor_telegram_id, product_id, operation, previous_values, new_values, request_id) VALUES (?, ?, 'CREATE', NULL, '{}', ?)"
+    ).bind(actorTelegramId, "missing-product", id("fk-audit")).run()).rejects.toThrow();
+  });
+
+  it("preserves sales, stock, debt, customer and attendance query contracts", async () => {
+    const productId = id("D1-SCHEMA-COMPAT");
+    await createProduct(env.DB, {
+      product_id: productId, name: "schema contract", purchase_price: 10, sell_price: 20,
+    }, context(id("schema-create")));
+    await env.DB.prepare("UPDATE inventory SET quantity=5 WHERE product_id=?").bind(productId).run();
+
+    const sale = await env.DB.prepare(
+      "INSERT INTO sales (product_id, quantity, sale_date, sale_time, sale_channel, purchase_price, sell_price, consumer_price, amount_paid, payment_method, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(productId, 2, "2026-11-22", "10:00:00", "in_store", 10, 20, 25, 10, "cash", "Test customer").run();
+
+    const inventory = await env.DB.prepare("SELECT quantity FROM inventory WHERE product_id=?").bind(productId).first();
+    const debt = await env.DB.prepare("SELECT sale_id, amount, status FROM debts WHERE sale_id=?").bind(Number(sale.meta.last_row_id)).first();
+    expect(inventory.quantity).toBe(3);
+    expect(debt.amount).toBe(30);
+    expect(debt.status).toBe("open");
+
+    await env.DB.prepare("INSERT INTO customers (name, phone, note) VALUES (?, ?, ?)").bind("Test customer", null, null).run();
+    await env.DB.prepare("INSERT INTO attendance (telegram_id, check_in) VALUES (?, ?)").bind(actorTelegramId, "2026-11-22T08:00:00Z").run();
+
+    await expect(env.DB.prepare("UPDATE sales SET amount_paid=20 WHERE id=?").bind(Number(sale.meta.last_row_id)).run()).rejects.toThrow(/immutable/);
+    await expect(env.DB.prepare("DELETE FROM sales WHERE id=?").bind(Number(sale.meta.last_row_id)).run()).rejects.toThrow(/immutable/);
+  });
+
   it("runs the product initialization trigger and records one atomic CREATE audit event", async () => {
     const productId = id("D1-CREATE");
     const requestId = id("create-request");
