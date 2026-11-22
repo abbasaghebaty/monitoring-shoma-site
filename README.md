@@ -38,6 +38,7 @@ docs/
   DATA_MODEL.md          مدل مفهومی داده
   D1_COMPATIBILITY.md    واقعیت‌های تأییدشده و تطبیق کد با D1 زنده
   PRODUCT_DATA_STRATEGY.md تصمیم‌های محصول، کاتالوگ و داده
+  PRODUCT_MANAGEMENT.md    قابلیت‌ها و محدودیت‌های مدیریت اجناس
   ACCOUNTING_RULES.md    قواعد و ملاحظات حسابداری
   DEPLOYMENT.md          راهنمای استقرار
   ROADMAP.md             چک‌لیست مرحله‌ای توسعه
@@ -85,7 +86,7 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 
 ## مستندات مهم
 
-پیش از هر تغییر، [SECURITY_AND_NEXT_STEPS.md](docs/SECURITY_AND_NEXT_STEPS.md)، [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) و سند دامنه مرتبط را بخوان.
+پیش از هر تغییر، [SECURITY_AND_NEXT_STEPS.md](docs/SECURITY_AND_NEXT_STEPS.md)، [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) و سند دامنه مرتبط را بخوان. محدوده مدیریت اجناس در [PRODUCT_MANAGEMENT.md](docs/PRODUCT_MANAGEMENT.md) ثبت شده است.
 
 ## اصول غیرقابل‌چشم‌پوشی
 
