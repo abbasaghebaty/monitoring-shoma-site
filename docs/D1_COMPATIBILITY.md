@@ -182,7 +182,7 @@ Migrationهای مخزن اکنون مرجع ساخت دیتابیس آزمای�
 
 ## آزمون D1 محلی در CI
 
-علاوه بر تست‌های Node.js و SQLite، فایل `tests/d1-runtime.test.js` با افزونه رسمی Workers Vitest در runtime محلی `workerd` اجرا می‌شود. Binding دیتابیس از `worker/wrangler.toml` خوانده می‌شود؛ چون هیچ `remote = true` تعریف نشده، Miniflare از D1 محلی و ایزوله استفاده می‌کند. Fixture پایه و Migration واقعی Audit فقط روی همین binding محلی اجرا می‌شوند.
+علاوه بر تست‌های Node.js و SQLite، فایل `tests/d1-runtime.test.js` با افزونه رسمی Workers Vitest در runtime محلی `workerd` اجرا می‌شود. Binding دیتابیس از `worker/wrangler.toml` خوانده می‌شود؛ چون هیچ `remote = true` تعریف نشده، Miniflare از D1 محلی و ایزوله استفاده می‌کند. Migrationهای واقعی baseline و audit فقط روی همین binding محلی اجرا می‌شوند.
 
 فرمان اجرا از ریشه مخزن:
 
