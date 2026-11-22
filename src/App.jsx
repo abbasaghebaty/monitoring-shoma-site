@@ -5,7 +5,7 @@ import { setAccessToken, clearAccessToken } from "./lib/api/client";
 import ProductsPage from "./pages/ProductsPage";
 
 const NAV = [
-  ["داشبورد", "dashboard", LayoutDashboard], ["محصولات", "products", Package],
+  ["داشبورد", "dashboard", LayoutDashboard], ["مدیریت اجناس", "products", Package],
   ["انبار و موجودی", "inventory", Warehouse], ["فروش", "sales", ShoppingCart],
   ["بدهی‌ها", "debts", Wallet], ["مشتریان", "customers", Users],
   ["ورود و خروج", "attendance", Clock3], ["گزارش فروش", "reports", ChartNoAxesCombined],
