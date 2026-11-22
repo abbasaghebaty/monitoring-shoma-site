@@ -21,27 +21,29 @@ function Login({ onLogin }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [requestId, setRequestId] = useState("");
+  const [errorCode, setErrorCode] = useState("");
   async function requestCode(event) {
-    event.preventDefault(); setBusy(true); setError(""); setNotice("");
-    try { const result = await api.requestOtp(telegramId.trim()); setSent(true); setNotice(result.message || "اگر حساب فعال و مجاز باشد، کد ورود ارسال می‌شود."); }
-    catch (e) { setError(e.message); } finally { setBusy(false); }
+    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setErrorCode(""); setNotice("");
+    try { const result = await api.requestOtp(telegramId.trim()); setSent(true); setNotice(result.message || "درخواست بررسی شد. اگر حساب فعال و مجاز باشد، در صورت امکان کد ورود از طریق تلگرام در اختیارتان قرار می‌گیرد."); }
+    catch (e) { setError(e.message); setRequestId(e.requestId || ""); setErrorCode(e.errorCode || ""); } finally { setBusy(false); }
   }
   async function verify(event) {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setErrorCode("");
     try {
       const result = await api.verifyOtp(telegramId.trim(), code.trim());
       setAccessToken(result.token); onLogin(result.user);
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+    } catch (e) { setError(e.message); setRequestId(e.requestId || ""); setErrorCode(e.errorCode || ""); } finally { setBusy(false); }
   }
   return <main className="auth-screen" dir="rtl"><form className="auth-card" onSubmit={sent ? verify : requestCode}>
     <div className="brand-mark auth-mark">ش</div><span className="eyebrow">سامانه مدیریت فروشگاه شما</span>
     <h1>ورود امن به پنل</h1><p>برای دریافت کد یک‌بارمصرف، شناسه عددی تلگرام خود را وارد کنید. اگر قبلاً با ربات گفتگو نکرده‌اید، ابتدا ربات را در تلگرام باز کنید و /start را بزنید.</p>
     <label>Telegram ID</label><input value={telegramId} onChange={e=>setTelegramId(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="شناسه عددی تلگرام" required disabled={sent}/>
-    {sent && <><label>کد ورود</label><input value={code} onChange={e=>setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="کد ۶ رقمی ارسال‌شده" required/></>}
-    {error && <div className="form-error"><AlertCircle size={16}/>{error}</div>}
+    {sent && <><label>کد ورود</label><input value={code} onChange={e=>setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="کد ۶ رقمی دریافتی" required/></>}
+    {error && <><div className="form-error"><AlertCircle size={16}/>{error}</div>{(errorCode || requestId) && <small className="auth-foot">{errorCode && <>کد خطا: {errorCode} · </>}کد پیگیری: {requestId || "در دسترس نیست"}</small>}</>}
     {notice && <div className="form-notice">{notice}</div>}
     <button className="primary-button auth-submit" disabled={busy}>{busy ? "لطفاً صبر کنید..." : sent ? "تأیید و ورود" : "ارسال کد ورود"}</button>
-    {sent && <button type="button" className="text-button auth-back" onClick={()=>{setSent(false);setCode("");setNotice("");setError("");}}>تغییر شناسه تلگرام</button>}
+    {sent && <button type="button" className="text-button auth-back" onClick={()=>{setSent(false);setCode("");setNotice("");setError("");setRequestId("");setErrorCode("");}}>تغییر شناسه تلگرام</button>}
     <small className="auth-foot">کد ورود فقط از طریق ربات تلگرام فروشگاه ارسال می‌شود. اگر کدی دریافت نکردید، ربات را باز کنید و /start را بزنید؛ سپس دوباره درخواست دهید.</small>
   </form></main>;
 }
