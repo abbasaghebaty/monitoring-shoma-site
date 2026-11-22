@@ -116,7 +116,7 @@ test("OTP storage failure is logged without revealing account eligibility", asyn
   const response = await requestOtp(request(), makeEnv({ kv: makeKv({ failPut: true }) }), context());
   const body = await responseBody(response);
   assert.equal(response.status, 202);
-  assert.equal(body.ok, true);
+  assert.equal(body.status, "unconfirmed");
   assert.ok(captured.some((line) => line.includes('"errorCode":"OTP_002"')));
 });
 
