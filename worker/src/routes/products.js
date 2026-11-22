@@ -27,7 +27,7 @@ export async function productWriteRoutes(request, env, url, user, context = null
     if (Object.keys(errors).length) return failure(400, "VALIDATION_001", "اطلاعات کالا معتبر نیست.", { fields: errors });
     try {
       const product = await createProduct(env.DB, body);
-      logEvent(context, "info", "PRODUCT_CREATED", { outcome: "success" });
+      logEvent(context, "info", "PRODUCT_CREATED", { outcome: "success", actorRole: user.role, productId: product?.product_id || String(body.product_id).trim() });
       return json({ ok: true, data: { product } }, 201);
     } catch (error) {
       logFailure(context, { errorCode: "PRODUCT_001", stage: "product_create", error, dependency: "D1" });
@@ -48,7 +48,7 @@ export async function productWriteRoutes(request, env, url, user, context = null
     try {
       const product = await updateProduct(env.DB, productId, body);
       if (!product) return failure(404, "PRODUCT_003", "کالای موردنظر پیدا نشد.");
-      logEvent(context, "info", "PRODUCT_UPDATED", { outcome: "success" });
+      logEvent(context, "info", "PRODUCT_UPDATED", { outcome: "success", actorRole: user.role, productId });
       return json({ ok: true, data: { product } });
     } catch (error) {
       logFailure(context, { errorCode: "PRODUCT_001", stage: "product_update", error, dependency: "D1" });
