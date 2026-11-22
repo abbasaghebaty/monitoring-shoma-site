@@ -39,4 +39,4 @@
 - ایجاد/ویرایش و Audit در یک D1 batch اتمیک هستند. Migration افزایشی در `worker/migrations` قرار دارد و در این شاخه روی Production اجرا نمی‌شود.
 - تست‌های Repository با SQLite in-memory از Migrationهای واقعی مخزن اجرا می‌شوند؛ تست Workers Vitest نیز همان فایل‌ها را روی D1 محلی Miniflare اجرا می‌کند. این تست‌ها Remote D1 یا Production را اثبات نمی‌کنند.
 
-> محدودیت تست: SQLite fixture بر اساس schema snapshot مستندشده بازسازی شده است؛ DDL کامل زنده و اجرای Cloudflare D1 در CI در دسترس نیست. تطبیق Trigger واقعی با fixture باید در Cloudflare Dashboard به‌صورت read-only تأیید شود.
+> محدودیت تست: تست‌ها از Migrationهای واقعی مخزن استفاده می‌کنند و fixture دستی حذف شده است. برابری این Migrationها با DDL فعلی D1 میزبانی‌شده هنوز نیازمند تطبیق read-only در Cloudflare Dashboard است.
