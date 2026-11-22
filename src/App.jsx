@@ -24,12 +24,12 @@ function Login({ onLogin }) {
   const [requestId, setRequestId] = useState("");
   const [errorCode, setErrorCode] = useState("");
   async function requestCode(event) {
-    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setErrorCode(""); setRequestId(""); setErrorCode(""); setNotice("");
-    try { const result = await api.requestOtp(telegramId.trim()); setSent(true); setNotice(result.message || "اگر حساب فعال و مجاز باشد، کد ورود ارسال می‌شود."); }
+    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setErrorCode(""); setNotice("");
+    try { const result = await api.requestOtp(telegramId.trim()); setSent(true); setNotice(result.message || "درخواست بررسی شد. اگر حساب فعال و مجاز باشد، در صورت امکان کد ورود از طریق تلگرام در اختیارتان قرار می‌گیرد."); }
     catch (e) { setError(e.message); setRequestId(e.requestId || ""); setErrorCode(e.errorCode || ""); } finally { setBusy(false); }
   }
   async function verify(event) {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault(); setBusy(true); setError(""); setRequestId(""); setErrorCode("");
     try {
       const result = await api.verifyOtp(telegramId.trim(), code.trim());
       setAccessToken(result.token); onLogin(result.user);
@@ -43,7 +43,7 @@ function Login({ onLogin }) {
     {error && <><div className="form-error"><AlertCircle size={16}/>{error}</div>{(errorCode || requestId) && <small className="auth-foot">{errorCode && <>کد خطا: {errorCode} · </>}کد پیگیری: {requestId || "در دسترس نیست"}</small>}</>}
     {notice && <div className="form-notice">{notice}</div>}
     <button className="primary-button auth-submit" disabled={busy}>{busy ? "لطفاً صبر کنید..." : sent ? "تأیید و ورود" : "ارسال کد ورود"}</button>
-    {sent && <button type="button" className="text-button auth-back" onClick={()=>{setSent(false);setCode("");setNotice("");setError("");}}>تغییر شناسه تلگرام</button>}
+    {sent && <button type="button" className="text-button auth-back" onClick={()=>{setSent(false);setCode("");setNotice("");setError("");setRequestId("");setErrorCode("");}}>تغییر شناسه تلگرام</button>}
     <small className="auth-foot">کد ورود فقط از طریق ربات تلگرام فروشگاه ارسال می‌شود. اگر کدی دریافت نکردید، ربات را باز کنید و /start را بزنید؛ سپس دوباره درخواست دهید.</small>
   </form></main>;
 }
