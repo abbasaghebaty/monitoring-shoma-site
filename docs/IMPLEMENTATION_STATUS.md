@@ -17,7 +17,7 @@
 - داشبورد و گزارش فروش بازه‌ای به queryهای D1 متصل شده‌اند.
 - APIهای خواندنی موجود حفظ شده‌اند؛ برای محصولات فقط POST ایجاد و PATCH ویرایش مشخصات/قیمت با مجوز owner/manager اضافه شده است.
 - ویرایش کالا فقط ستون‌های واقعاً تغییرکرده را با optimistic concurrency control می‌نویسد؛ Snapshot stale با 409 رد می‌شود.
-- Migration افزایشی Audit کالا تعریف شده و CREATE/UPDATE را در همان D1 batch ثبت می‌کند؛ Migration فقط در SQLite آزمایشی اجرا شده است.
+- زنجیرهٔ Migration شامل baseline کامل و Audit است؛ هر دو فایل در SQLite و D1 محلی از دیتابیس خالی اجرا می‌شوند. Production اجرا نشده است.
 - مسیر موقت schema inspection از Router عمومی خارج شده است.
 - Frontend صفحه ورود، وضعیت‌های loading/error/empty و جدول‌های داده واقعی را دارد.
 - GitHub Actions مقدار عمومی VITE_API_BASE_URL را از Repository Variable می‌گیرد.
@@ -29,7 +29,7 @@
 - رویدادهای CREATE/UPDATE در `product_audit_log` با actor، product، مقادیر قبلی/جدید، زمان و request ID یکتا ثبت می‌شوند.
 - ویرایش شناسه اصلی، موجودی، سوابق فروش یا جدول‌های مالی انجام نمی‌شود.
 - بارکد، دسته‌بندی، وضعیت فعال/غیرفعال و حداقل موجودی در schema تأییدشده وجود ندارند؛ حذف/غیرفعال‌سازی فعال نشده است.
-- هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نشده است. تست‌ها Migration افزایشی را فقط روی SQLite درون‌حافظه‌ای اجرا می‌کنند.
+- هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نشده است. تست‌ها baseline و audit را فقط روی SQLite in-memory و D1 محلی Miniflare اجرا می‌کنند.
 
 ## محدودیت‌های آگاهانه
 1. جدول‌های users و attendance و تمام سوابق آن‌ها دست‌نخورده‌اند. Migration افزایشی فقط جدول مستقل Audit را در شاخه تعریف می‌کند و روی Production اجرا نشده است.
@@ -71,4 +71,4 @@ Commit در شاخه توسعه به‌تنهایی به معنی Deploy نیس�
 ## تست‌های خودکار شاخه feature
 - Node.js 22 و `node:sqlite` برای اجرای SQLite واقعی درون‌حافظه‌ای استفاده می‌شوند.
 - CI فعلی: 40 تست موفق، شامل تست‌های auth، role UI، Trigger fixture، FK، batch rollback، CAS هم‌زمان، Audit append-only و عدم دسترسی employee.
-- Fixture از schema snapshot مستندشده بازسازی شده است؛ تطبیق دقیق Trigger زنده و Cloudflare D1 Runtime همچنان نیازمند بررسی Dashboard است.
+- fixture دستی حذف شده است؛ تست‌ها از Migrationهای واقعی مخزن استفاده می‌کنند. تطبیق دقیق Triggerهای D1 میزبانی‌شده همچنان نیازمند بررسی Dashboard است.
