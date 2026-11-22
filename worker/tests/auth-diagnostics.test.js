@@ -5,6 +5,7 @@ import { requestOtp, verifyOtp } from "../src/auth/otp.js";
 import { logFailure, withRequestMetadata } from "../src/utils/diagnostics.js";
 
 const originalFetch = globalThis.fetch;
+const originalGetRandomValues = globalThis.crypto.getRandomValues;
 const originalConsole = { log: console.log, warn: console.warn, error: console.error };
 
 function makeKv({ failGet = false, failPut = false, failDelete = false } = {}) {
@@ -70,6 +71,7 @@ async function responseBody(response) {
 
 test.afterEach(() => {
   globalThis.fetch = originalFetch;
+  globalThis.crypto.getRandomValues = originalGetRandomValues;
   console.log = originalConsole.log;
   console.warn = originalConsole.warn;
   console.error = originalConsole.error;
@@ -105,6 +107,18 @@ test("KV cooldown lookup failure returns a service-unavailable error", async () 
   const body = await responseBody(response);
   assert.equal(response.status, 503);
   assert.equal(body.error.errorCode, "KV_001");
+});
+
+
+test("OTP generation failure is logged without revealing account eligibility", async () => {
+  const captured = [];
+  console.error = (line) => captured.push(String(line));
+  globalThis.crypto.getRandomValues = () => { throw new Error("secure random unavailable"); };
+  const response = await requestOtp(request(), makeEnv(), context());
+  const body = await responseBody(response);
+  assert.equal(response.status, 202);
+  assert.equal(body.status, "unconfirmed");
+  assert.ok(captured.some((line) => line.includes('"errorCode":"OTP_001"')));
 });
 
 test("OTP storage failure is logged without revealing account eligibility", async () => {
