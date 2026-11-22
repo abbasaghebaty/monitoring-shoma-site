@@ -13,11 +13,46 @@ const manager = { telegram_id: actorTelegramId, role: "manager" };
 const context = (requestId) => ({ actorTelegramId, requestId });
 const id = (prefix) => prefix + "-" + crypto.randomUUID();
 
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = "";
+  let insideTrigger = false;
+
+  for (const line of sql.split(/\\r?\\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("--") || /^PRAGMA\\b/i.test(trimmed)) continue;
+
+    if (/^CREATE\\s+TRIGGER\\b/i.test(trimmed)) insideTrigger = true;
+    current += (current ? "\\n" : "") + line;
+
+    if (insideTrigger) {
+      if (/^END;?$/i.test(trimmed)) {
+        statements.push(current.trim().replace(/;$/, ""));
+        current = "";
+        insideTrigger = false;
+      }
+    } else if (trimmed.endsWith(";")) {
+      statements.push(current.trim().replace(/;$/, ""));
+      current = "";
+    }
+  }
+
+  if (current.trim()) throw new Error("Incomplete SQL fixture statement");
+  return statements;
+}
+
+async function applyStatements(sql) {
+  for (const statement of splitSqlStatements(sql)) {
+    await env.DB.prepare(statement).run();
+  }
+}
+
 beforeAll(async () => {
   // cloudflareTest uses the local Miniflare D1 binding from wrangler.toml.
-  // Fixture statements and the real audit migration run only against that isolated binding.
-  await env.DB.exec(env.TEST_PRODUCT_SCHEMA_SQL);
-  await env.DB.exec(env.TEST_AUDIT_MIGRATION_SQL);
+  // The fixture and actual audit migration are executed statement-by-statement
+  // because D1Database.exec() accepts newline-separated queries, not multiline SQL blocks.
+  await applyStatements(env.TEST_PRODUCT_SCHEMA_SQL);
+  await applyStatements(env.TEST_AUDIT_MIGRATION_SQL);
   await env.DB.prepare(
     "INSERT INTO users (telegram_id, full_name, role, is_active) VALUES (?, ?, 'manager', 1)"
   ).bind(actorTelegramId, "D1 Integration Manager").run();
