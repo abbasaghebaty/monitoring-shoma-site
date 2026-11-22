@@ -27,11 +27,11 @@ export function errorResponse(error, extra = {}) {
   }, error.status);
 }
 
-export function publicOtpAccepted() {
+export function publicOtpOutcome() {
   // Same status and body for unknown, inactive, rate-limited, delivered and failed delivery.
   // This intentionally prevents account enumeration and does not claim that a message was sent.
   return json({
-    ok: true,
+    status: "unconfirmed",
     data: {
       message: "درخواست بررسی شد. اگر حساب فعال و مجاز باشد، در صورت امکان کد ورود از طریق تلگرام در اختیارتان قرار می‌گیرد. اگر کدی دریافت کردید، آن را وارد کنید.",
     },
