@@ -2,7 +2,6 @@ import { json } from "./response.js";
 
 export const AUTH_ERRORS = Object.freeze({
   CONFIG_MISSING: { errorCode: "CONFIG_001", status: 503, message: "سرویس ورود موقتاً در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید." },
-  DB_UNAVAILABLE: { errorCode: "DB_001", status: 503, message: "ارتباط با پایگاه داده موقتاً برقرار نیست. لطفاً کمی بعد دوباره تلاش کنید." },
   DB_QUERY_FAILED: { errorCode: "DB_002", status: 500, message: "در پردازش درخواست خطایی رخ داد. کد پیگیری را به مدیر سامانه اعلام کنید." },
   KV_UNAVAILABLE: { errorCode: "KV_001", status: 503, message: "سرویس ورود موقتاً در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید." },
   OTP_GENERATION_FAILED: { errorCode: "OTP_001", status: 500, message: "تولید کد ورود با خطا روبه‌رو شد. لطفاً دوباره تلاش کنید." },
