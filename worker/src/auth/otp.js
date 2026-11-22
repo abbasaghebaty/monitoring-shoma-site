@@ -162,7 +162,7 @@ export async function requestOtp(request, env, context = null) {
     };
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.OTP_GENERATION_FAILED.errorCode, "otp_generation", error, "WebCrypto");
-    return errorResponse(AUTH_ERRORS.OTP_GENERATION_FAILED);
+    return publicOtpAccepted();
   }
 
   const otpKey = `otp:${telegramId}`;
@@ -171,7 +171,7 @@ export async function requestOtp(request, env, context = null) {
     await env.SITE_AUTH_KV.put(otpKey, JSON.stringify(record), { expirationTtl: OTP_TTL });
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_storage", error, "KV");
-    return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+    return publicOtpAccepted();
   }
 
   try {
@@ -196,7 +196,7 @@ export async function requestOtp(request, env, context = null) {
         : AUTH_ERRORS.TELEGRAM_DELIVERY_FAILED.errorCode;
 
     logOtpFailure(context, errorCode, "telegram_delivery", error, "Telegram Bot API", {
-      telegramHttpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : null,
+      httpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : null,
       telegramErrorCode: Number.isInteger(error.telegramErrorCode) ? error.telegramErrorCode : null,
       telegramDescription: typeof error.telegramDescription === "string"
         ? error.telegramDescription.replace(/\b\d{5,15}\b/g, "[REDACTED_ID]").slice(0, 300)
