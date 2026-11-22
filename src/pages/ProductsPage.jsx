@@ -59,7 +59,7 @@ function ProductEditor({ product, onClose, onSaved }) {
         {input("package_quantity","تعداد در بسته",{type:"number",min:"1",step:"1"})}
         {input("weight","وزن",{type:"number",min:"0.001",step:"any"})}
         {input("weight_unit","واحد وزن",{maxLength:20})}
-        {PRICES.map(([key,label])=>input(key,label+" (تومان)",{type:"number",min:"0",step:"1",ltr:true}))}
+        {PRICES.map(([key,label])=>input(key,label+" (تومان)",{type:"number",min:"0",step:"1",ltr:true,required:true}))}
         <label className="product-field product-description"><span>توضیحات</span><textarea rows="3" maxLength="2000" value={draft.description} onChange={e=>set("description",e.target.value)} disabled={busy}/>{errors.description&&<small className="field-error">{errors.description}</small>}</label>
       </div>
       <p className="product-schema-note">بارکد، دسته‌بندی، وضعیت فعال/غیرفعال و حداقل موجودی در schema فعلی وجود ندارند. موجودی اولیه با Trigger دیتابیس صفر ساخته می‌شود و از این فرم تغییر نمی‌کند.</p>
