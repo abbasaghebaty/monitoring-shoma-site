@@ -4,6 +4,7 @@ import {
   createProduct,
   updateProduct,
   getProduct,
+  listProducts,
   ProductConflictError,
 } from "../worker/src/repositories/products.js";
 import { productWriteRoutes } from "../worker/src/routes/products.js";
