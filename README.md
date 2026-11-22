@@ -31,7 +31,8 @@ GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌
 
 docs/
   ARCHITECTURE.md        نمای معماری و ارتباط اجزای سامانه
-  API_CONTRACT.md        قرارداد مسیرها و پاسخ‌های API\n  AUTH_DIAGNOSTICS.md    کدهای خطا، requestId و روش پیگیری لاگ‌های احراز هویت
+  API_CONTRACT.md        قرارداد مسیرها و پاسخ‌های API
+  AUTH_DIAGNOSTICS.md    کدهای خطا، requestId و روش پیگیری لاگ‌های احراز هویت
   DATA_MODEL.md          مدل مفهومی داده
   D1_COMPATIBILITY.md    واقعیت‌های تأییدشده و تطبیق کد با D1 زنده
   PRODUCT_DATA_STRATEGY.md تصمیم‌های محصول، کاتالوگ و داده
