@@ -13,7 +13,7 @@ GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌
 
 ## تصمیم قطعی درباره دیتابیس
 
-**Schema عملیاتی فعلی D1 مرجع نهایی است و در این فاز بازنویسی نمی‌شود.** Migration افزایشی Audit کالا در شاخه feature تعریف شده، اما روی Production اجرا نشده است. کد ربات و Worker باید با دیتابیس موجود تطبیق داده شوند؛ نه اینکه جدول‌ها یا ستون‌های D1 برای سازگاری با queryهای قدیمی تغییر کنند. جزئیات و ناسازگاری‌های شناخته‌شده در [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) ثبت می‌شوند.
+**Schema مرجع پروژه versioned و migration-driven است.** worker/migrations/0000_baseline.sql ساخت دیتابیس تازه را تعریف می‌کند و 0001_product_audit_log.sql لایه Audit را اضافه می‌کند. Baseline از CREATE IF NOT EXISTS استفاده می‌کند تا در دیتابیس موجود، جدول‌ها/ردیف‌ها را حذف یا بازنویسی نکند؛ اما تعریف ستون‌ها و Triggerهای موجود را نیز اصلاح نمی‌کند. قبل از پذیرش یک دیتابیس موجود، تطبیق read-only آن با قرارداد canonical الزامی است. هیچ Migrationای در این PR روی Production اجرا نشده است. جزئیات در D1_COMPATIBILITY.md ثبت شده‌اند.
 
 ## وضعیت فعلی
 
@@ -95,7 +95,7 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 - CORS جای احراز هویت و مجوز دسترسی را نمی‌گیرد.
 - هر endpoint خصوصی باید در خود Worker هویت و مجوز کاربر را بررسی کند.
 - گزارش‌های مشتق‌شده از داده خام محاسبه شوند؛ منبع حقیقت، سوابق عملیاتی باشند.
-- هیچ migration یا تغییر schema روی D1 برای سازگاری با کد قدیمی انجام نشود.
+- تغییر schema فقط با Migration نسخه‌دار، بررسی backward compatibility و تأیید مستقل انجام شود؛ هیچ Migrationای از این PR روی Production اجرا نشده است.
 - حذف یا اصلاح سوابق مالی باید قابل ردیابی باشد.
 
 ## انتشار
@@ -110,3 +110,13 @@ Worker از طریق تنظیمات و ابزارهای Cloudflare منتشر م
 - `npm --prefix worker test`: تست‌های Worker و SQLite ایزوله.
 - `npm run test:d1`: تست‌های integration با D1 محلی در Workers Vitest/Miniflare؛ هیچ اتصال Remote یا Production در این فرمان تنظیم نشده است.
 - `npm run build`: ساخت Frontend.
+
+
+## زنجیرهٔ canonical دیتابیس
+
+ترتیب Migrationها در worker/migrations:
+
+1. 0000_baseline.sql — ساخت جداول دامنه، کلیدها، محدودیت‌ها، indexها و Triggerهای عملیاتی.
+2. 0001_product_audit_log.sql — جدول و Triggerهای append-only مربوط به Audit کالا.
+
+برای تست از صفر: npm test --prefix worker و npm run test:d1. هر دو مجموعه از همین دو فایل Migration استفاده می‌کنند؛ هیچ schema fixture جداگانه‌ای باقی نمانده است. وضعیت دیتابیس Cloudflare میزبانی‌شده در این PR دوباره خوانده نشده و از روی این تست‌ها دربارهٔ آن نتیجه‌گیری نمی‌شود.
