@@ -75,6 +75,7 @@ function barrierDatabase(db, expectedReaders = 2) {
       const statement = db.prepare(sql);
       let bound = statement;
       const wrapper = {
+        __d1Statement() { return bound; },
         bind(...values) { bound = statement.bind(...values); return wrapper; },
         async first(...args) {
           const result = await bound.first(...args);
@@ -91,7 +92,7 @@ function barrierDatabase(db, expectedReaders = 2) {
       };
       return wrapper;
     },
-    batch: (statements) => db.batch(statements),
+    batch: (statements) => db.batch(statements.map((statement) => statement.__d1Statement())),
   };
 }
 
