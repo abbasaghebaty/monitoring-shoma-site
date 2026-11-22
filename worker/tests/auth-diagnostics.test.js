@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
-import { requestOtp } from "../src/auth/otp.js";
+import { requestOtp, verifyOtp } from "../src/auth/otp.js";
 import { logFailure, withRequestMetadata } from "../src/utils/diagnostics.js";
 
 const originalFetch = globalThis.fetch;
@@ -108,6 +108,8 @@ test("KV cooldown lookup failure returns a service-unavailable error", async () 
 });
 
 test("OTP storage failure is logged without revealing account eligibility", async () => {
+  const captured = [];
+  console.error = (line) => captured.push(String(line));
   globalThis.fetch = async () => {
     throw new Error("Telegram must not be called when OTP storage fails");
   };
@@ -115,6 +117,7 @@ test("OTP storage failure is logged without revealing account eligibility", asyn
   const body = await responseBody(response);
   assert.equal(response.status, 202);
   assert.equal(body.ok, true);
+  assert.ok(captured.some((line) => line.includes('"errorCode":"OTP_002"')));
 });
 
 test("unknown and inactive users receive the same neutral response", async () => {
@@ -215,4 +218,16 @@ test("diagnostic error logging redacts token-like values and numeric identifiers
   assert.doesNotMatch(output, /dummy-secret/);
   assert.doesNotMatch(output, /123456789/);
   assert.match(output, /REDACTED_BOT_TOKEN/);
+});
+
+test("invalid OTP uses the standardized authentication error", async () => {
+  const verifyRequest = new Request("https://worker.test/api/v1/auth/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ telegramId: "123456", code: "111111" }),
+  });
+  const response = await verifyOtp(verifyRequest, makeEnv(), context());
+  const body = await responseBody(response);
+  assert.equal(response.status, 401);
+  assert.equal(body.error.errorCode, "OTP_004");
 });
