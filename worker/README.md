@@ -10,7 +10,7 @@
 - شناسه D1 با Worker ربات فروشگاه یکسان است.
 - GET /health با SELECT 1 اتصال binding را بررسی می‌کند.
 
-هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نمی‌شود. Migration افزایشی Audit کالا در این شاخه وجود دارد و فقط در تست SQLite آزمایشی اجرا می‌شود. جدول‌های users و attendance و تمام سوابق ورود و خروج باید حفظ شوند.
+هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نمی‌شود. زنجیرهٔ migration نسخه‌دار شامل 0000_baseline.sql و 0001_product_audit_log.sql است. تست‌ها هر دو را از صفر روی دیتابیس ایزوله اجرا می‌کنند. baseline برای اشیای موجود از IF NOT EXISTS استفاده می‌کند و جدول/ردیف موجود را حذف یا بازنویسی نمی‌کند؛ اما ساختار موجود را هم اصلاح نمی‌کند. پیش از هر مهاجرت remote باید schema preflight و backup انجام شود. جدول‌های users و attendance و سوابق ورود/خروج در Migration حذف نمی‌شوند.
 
 ## احراز هویت
 - ورود با Telegram ID و OTP پنج‌دقیقه‌ای از طریق Telegram Bot API؛ کاربر باید قبلاً ربات را باز کرده و `/start` زده باشد.
@@ -90,7 +90,17 @@ npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.t
 
 هرگز `--local` را حذف نکنید. این پروژه در این PR Migration را روی Production اجرا نمی‌کند. Migration تولیدی نیازمند تأیید جداگانه و backup/rollback plan است.
 
-> تست SQLite از fixture بازسازی‌شده بر پایهٔ snapshot مستندشده استفاده می‌کند. پیش از Production، تعریف واقعی Triggerهای D1 باید به‌صورت read-only با fixture مقایسه شود؛ CI به D1 زنده متصل نمی‌شود.
+> تست‌ها fixture مستقل ندارند و مستقیماً 0000_baseline.sql و 0001_product_audit_log.sql را به‌ترتیب اعمال می‌کنند. پیش از Production، تعریف واقعی Triggerهای D1 باید به‌صورت read-only با baseline مقایسه شود؛ CI به D1 زنده متصل نمی‌شود.
 
 
 سیاست نگهداری Audit: پاک‌سازی خودکار وجود ندارد و رویدادها تا زمان تعریف سیاست رسمی نگهداری می‌شوند. Worker جدید به جدول Audit نیاز دارد؛ قبل از Deploy آن به هر محیط، Migration متناظر باید در همان محیط اجرا و بررسی شده باشد. در این PR، Production migration و deploy انجام نشده‌اند.
+
+
+## Canonical migration sequence
+
+- 0000_baseline.sql: creates users, products, product_prices, inventory, sales, debts, customers and attendance, plus operational indexes and triggers.
+- 0001_product_audit_log.sql: creates product audit references, JSON/operation/request constraints, indexes and append-only triggers.
+- Fresh local initialization: npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml.
+- Test initialization uses these same files; no hand-maintained schema fixture remains.
+- For an existing D1 database, inspect all existing definitions before applying. IF NOT EXISTS is non-destructive but cannot repair a pre-existing table or trigger with an incompatible definition.
+- The hosted database was not inspected or migrated as part of this task.
