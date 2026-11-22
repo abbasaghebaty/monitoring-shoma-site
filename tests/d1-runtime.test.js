@@ -7,6 +7,12 @@ import {
   ProductConflictError,
 } from "../worker/src/repositories/products.js";
 import { productWriteRoutes } from "../worker/src/routes/products.js";
+import { listInventory } from "../worker/src/repositories/inventory.js";
+import { listSales } from "../worker/src/repositories/sales.js";
+import { listDebts } from "../worker/src/repositories/debts.js";
+import { listCustomers } from "../worker/src/repositories/customers.js";
+import { listAttendance } from "../worker/src/repositories/attendance.js";
+import { dashboardRoutes } from "../worker/src/routes/dashboard.js";
 
 const actorTelegramId = 7001001;
 const manager = { telegram_id: actorTelegramId, role: "manager" };
@@ -38,7 +44,7 @@ function splitSqlStatements(sql) {
     }
   }
 
-  if (current.trim()) throw new Error("Incomplete SQL fixture statement");
+  if (current.trim()) throw new Error("Incomplete migration SQL statement");
   return statements;
 }
 
@@ -50,10 +56,10 @@ async function applyStatements(sql) {
 
 beforeAll(async () => {
   // cloudflareTest uses the local Miniflare D1 binding from wrangler.toml.
-  // The fixture and actual audit migration are executed statement-by-statement
+  // The actual ordered baseline and audit migrations are executed statement-by-statement
   // because D1Database.exec() accepts newline-separated queries, not multiline SQL blocks.
   const before = await env.DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
   ).all();
   if (before.results.length !== 0) throw new Error("D1 test binding must start empty; found: " + before.results.map((row) => row.name).join(", "));
 
@@ -106,7 +112,7 @@ function barrierDatabase(db, expectedReaders = 2) {
 describe("Cloudflare D1 runtime product integrity", () => {
   it("initializes every application table from an empty D1 database using ordered migrations", async () => {
     const tables = await env.DB.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
     ).all();
     expect(tables.results.map((row) => row.name)).toEqual([
       "attendance", "customers", "debts", "inventory", "product_audit_log",
@@ -141,6 +147,15 @@ describe("Cloudflare D1 runtime product integrity", () => {
 
     await env.DB.prepare("INSERT INTO customers (name, phone, note) VALUES (?, ?, ?)").bind("Test customer", null, null).run();
     await env.DB.prepare("INSERT INTO attendance (telegram_id, check_in) VALUES (?, ?)").bind(actorTelegramId, "2026-11-22T08:00:00Z").run();
+
+    const queryUrl = new URL("https://worker.test/api/v1");
+    expect((await listInventory(env.DB, queryUrl)).items).toHaveLength(1);
+    expect((await listSales(env.DB, queryUrl)).items).toHaveLength(1);
+    expect((await listDebts(env.DB, queryUrl)).items).toHaveLength(1);
+    expect((await listCustomers(env.DB, queryUrl)).items).toHaveLength(1);
+    expect((await listAttendance(env.DB, queryUrl)).items).toHaveLength(1);
+    const dashboard = await dashboardRoutes(new Request("https://worker.test/api/v1/dashboard/summary"), { DB: env.DB }, new URL("https://worker.test/api/v1/dashboard/summary"), manager);
+    expect((await dashboard.json()).data.products.count).toBe(1);
 
     await expect(env.DB.prepare("UPDATE sales SET amount_paid=20 WHERE id=?").bind(Number(sale.meta.last_row_id)).run()).rejects.toThrow(/immutable/);
     await expect(env.DB.prepare("DELETE FROM sales WHERE id=?").bind(Number(sale.meta.last_row_id)).run()).rejects.toThrow(/immutable/);
