@@ -103,3 +103,10 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 Frontend با GitHub Actions از شاخه `main` روی GitHub Pages منتشر می‌شود. تنظیمات build در `vite.config.js` و workflow در `.github/workflows/deploy-pages.yml` قرار دارند.
 
 Worker از طریق تنظیمات و ابزارهای Cloudflare منتشر می‌شود؛ راهنمای آن در [worker/README.md](worker/README.md) است. روند این پروژه بر پایه GitHub و Cloudflare Dashboard است و نباید اجرای محلی یا ترمینال را پیش‌فرض بگیریم.
+
+
+## آزمون‌های محصول
+
+- `npm --prefix worker test`: تست‌های Worker و SQLite ایزوله.
+- `npm run test:d1`: تست‌های integration با D1 محلی در Workers Vitest/Miniflare؛ هیچ اتصال Remote یا Production در این فرمان تنظیم نشده است.
+- `npm run build`: ساخت Frontend.
