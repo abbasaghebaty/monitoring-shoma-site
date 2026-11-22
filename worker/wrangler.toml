@@ -9,6 +9,7 @@ ALLOWED_ORIGINS = "https://abbasaghebaty.github.io"
 [[d1_databases]]
 binding = "DB"
 database_name = "shop-manager"
+migrations_dir = "migrations"
 database_id = "4e406079-a02f-4412-9167-57ca03b29f85"
 
 [[kv_namespaces]]

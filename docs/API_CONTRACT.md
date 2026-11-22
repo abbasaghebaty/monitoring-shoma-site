@@ -58,6 +58,16 @@
 - GET /api/v1/attendance?from=&to=&limit=&offset=
 - GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD&channel=
 
+## مدیریت کالا
+
+- `POST /api/v1/products` — ایجاد کالا بر اساس ستون‌های واقعی `products` و قیمت‌های `product_prices`؛ Trigger موجود، ردیف موجودی صفر را ایجاد می‌کند.
+- `PATCH /api/v1/products/:productId` — ویرایش مشخصات پایه و چهار نوع قیمت؛ شناسه اصلی کالا تغییر نمی‌کند.
+- هر دو مسیر فقط برای نقش‌های `owner` و `manager` و فقط با نشست معتبر مجازند. نقش معتبر در OTP و دوباره در middleware نشست به `owner`، `manager` یا `employee` محدود است.
+- PATCH فقط فیلدهای ارسال‌شده و واقعاً تغییرکرده را می‌نویسد؛ Snapshot کامل برای کنترل هم‌زمانی استفاده می‌شود. تعارض Snapshot پاسخ HTTP 409 با `PRODUCT_CONFLICT` می‌دهد. نبود ردیف قیمت پاسخ 409 و درخواست بدون تغییر مؤثر پاسخ 422 می‌دهد.
+- هر CREATE/UPDATE، رویداد Audit دائمی را در همان تراکنش D1 ثبت می‌کند. request ID رویداد با request ID پاسخ Worker یکی است.
+- جست‌وجوی `GET /api/v1/products` بر اساس نام یا شناسه است و فیلتر موجودی `stock=in_stock|out_of_stock` را می‌پذیرد.
+- حذف، غیرفعال‌سازی، بارکد، دسته‌بندی و تغییر موجودی در این قرارداد نیستند؛ schema فعلی آن‌ها را پشتیبانی نمی‌کند.
+
 ## مجوز
 
 - owner و manager: منابع مدیریتی خواندنی
@@ -74,4 +84,4 @@ API خرید، تأمین‌کننده، هزینه، invoice چندقلمی، l
 - محصولات از products و join با product_prices و inventory خوانده می‌شوند.
 - فروش از sales و بدهی از debts.sale_id خوانده می‌شود.
 - attendance فقط SELECT است و هیچ write endpoint برای آن وجود ندارد.
-- هیچ migration یا تغییر D1 در این شاخه انجام نمی‌شود.
+- زنجیرهٔ schema نسخه‌دار در worker/migrations شامل baseline و audit است؛ در این PR هیچ migration یا query نوشتنی روی Production D1 اجرا نشده است.

@@ -13,11 +13,13 @@ GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌
 
 ## تصمیم قطعی درباره دیتابیس
 
-**ساختار فعلی D1 مرجع نهایی است و در این فاز تغییر نمی‌کند.** کد ربات و Worker باید با دیتابیس موجود تطبیق داده شوند؛ نه اینکه جدول‌ها یا ستون‌های D1 برای سازگاری با queryهای قدیمی تغییر کنند. جزئیات و ناسازگاری‌های شناخته‌شده در [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) ثبت می‌شوند.
+**Schema مرجع پروژه versioned و migration-driven است.** worker/migrations/0000_baseline.sql ساخت دیتابیس تازه را تعریف می‌کند و 0001_product_audit_log.sql لایه Audit را اضافه می‌کند. Baseline از CREATE IF NOT EXISTS استفاده می‌کند تا در دیتابیس موجود، جدول‌ها/ردیف‌ها را حذف یا بازنویسی نکند؛ اما تعریف ستون‌ها و Triggerهای موجود را نیز اصلاح نمی‌کند. قبل از پذیرش یک دیتابیس موجود، تطبیق read-only آن با قرارداد canonical الزامی است. هیچ Migrationای در این PR روی Production اجرا نشده است. جزئیات در D1_COMPATIBILITY.md ثبت شده‌اند.
 
 ## وضعیت فعلی
 
-- شاخه اتصال شامل ورود OTP تلگرام، نشست Bearer، کنترل نقش و APIهای فقط‌خواندنی است.
+- ورود OTP تلگرام، نشست Bearer و کنترل نقش در Worker انجام می‌شود.
+- داشبورد، موجودی، فروش، بدهی، مشتریان، حضور و غیاب و گزارش‌ها از API واقعی D1 خوانده می‌شوند.
+- بخش «مدیریت اجناس» ایجاد و ویرایش مشخصات و قیمت کالا را با مجوز owner/manager انجام می‌دهد؛ کنترل هم‌زمانی و Audit اتمیک دارد. موجودی مستقل و سوابق فروش را تغییر نمی‌دهد.
 - صفحات سایت به API متصل شده‌اند و داده ساختگی نمایش نمی‌دهند.
 - اتصال Worker به D1 در زمان اجرا باید با `/health` تأیید شود.
 - پیش از Deploy باید KV مستقل و Secretهای Cloudflare تنظیم شوند؛ جزئیات در [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) است.
@@ -36,6 +38,7 @@ docs/
   DATA_MODEL.md          مدل مفهومی داده
   D1_COMPATIBILITY.md    واقعیت‌های تأییدشده و تطبیق کد با D1 زنده
   PRODUCT_DATA_STRATEGY.md تصمیم‌های محصول، کاتالوگ و داده
+  PRODUCT_MANAGEMENT.md    قابلیت‌ها، Audit و محدودیت‌های مدیریت اجناس
   ACCOUNTING_RULES.md    قواعد و ملاحظات حسابداری
   DEPLOYMENT.md          راهنمای استقرار
   ROADMAP.md             چک‌لیست مرحله‌ای توسعه
@@ -43,7 +46,7 @@ docs/
                          مرجع اصلی ادامه کار، امنیت، وضعیت و گام بعدی
 
 src/
-  App.jsx                پوسته اصلی، مسیریابی و چیدمان پنل
+  App.jsx                پوسته اصلی و جابه‌جایی بخش‌های پنل
   main.jsx               نقطه ورود React
   styles.css             استایل‌های سراسری
   components/            اجزای مشترک رابط کاربری
@@ -56,10 +59,12 @@ src/
   modules/
     registry.js          فهرست و مشخصات ماژول‌های پنل
     */model.js           مدل و توابع کمکی هر دامنه
-  pages/                 صفحه‌های مستقل هر بخش پنل
+  pages/
+    ProductsPage.jsx     فهرست، جست‌وجو، فیلتر و فرم مدیریت کالا
 
 worker/
   wrangler.toml          نام Worker، متغیرهای عمومی و binding دیتابیس
+  migrations/             Migrationهای افزایشی؛ اجرای Production فقط با تأیید جداگانه
   package.json           وابستگی‌ها و فرمان‌های Worker
   README.md              راهنمای فنی Worker و تنظیمات Cloudflare
   src/
@@ -82,7 +87,7 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 
 ## مستندات مهم
 
-پیش از هر تغییر، [SECURITY_AND_NEXT_STEPS.md](docs/SECURITY_AND_NEXT_STEPS.md)، [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) و سند دامنه مرتبط را بخوان.
+پیش از هر تغییر، [SECURITY_AND_NEXT_STEPS.md](docs/SECURITY_AND_NEXT_STEPS.md)، [D1_COMPATIBILITY.md](docs/D1_COMPATIBILITY.md) و سند دامنه مرتبط را بخوان. محدوده مدیریت اجناس در [PRODUCT_MANAGEMENT.md](docs/PRODUCT_MANAGEMENT.md) ثبت شده است.
 
 ## اصول غیرقابل‌چشم‌پوشی
 
@@ -90,7 +95,7 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 - CORS جای احراز هویت و مجوز دسترسی را نمی‌گیرد.
 - هر endpoint خصوصی باید در خود Worker هویت و مجوز کاربر را بررسی کند.
 - گزارش‌های مشتق‌شده از داده خام محاسبه شوند؛ منبع حقیقت، سوابق عملیاتی باشند.
-- هیچ migration یا تغییر schema روی D1 برای سازگاری با کد قدیمی انجام نشود.
+- تغییر schema فقط با Migration نسخه‌دار، بررسی backward compatibility و تأیید مستقل انجام شود؛ هیچ Migrationای از این PR روی Production اجرا نشده است.
 - حذف یا اصلاح سوابق مالی باید قابل ردیابی باشد.
 
 ## انتشار
@@ -98,3 +103,20 @@ vite.config.js            تنظیمات build و مسیر پایه GitHub Pages
 Frontend با GitHub Actions از شاخه `main` روی GitHub Pages منتشر می‌شود. تنظیمات build در `vite.config.js` و workflow در `.github/workflows/deploy-pages.yml` قرار دارند.
 
 Worker از طریق تنظیمات و ابزارهای Cloudflare منتشر می‌شود؛ راهنمای آن در [worker/README.md](worker/README.md) است. روند این پروژه بر پایه GitHub و Cloudflare Dashboard است و نباید اجرای محلی یا ترمینال را پیش‌فرض بگیریم.
+
+
+## آزمون‌های محصول
+
+- `npm --prefix worker test`: تست‌های Worker و SQLite ایزوله.
+- `npm run test:d1`: تست‌های integration با D1 محلی در Workers Vitest/Miniflare؛ هیچ اتصال Remote یا Production در این فرمان تنظیم نشده است.
+- `npm run build`: ساخت Frontend.
+
+
+## زنجیرهٔ canonical دیتابیس
+
+ترتیب Migrationها در worker/migrations:
+
+1. 0000_baseline.sql — ساخت جداول دامنه، کلیدها، محدودیت‌ها، indexها و Triggerهای عملیاتی.
+2. 0001_product_audit_log.sql — جدول و Triggerهای append-only مربوط به Audit کالا.
+
+برای تست از صفر: npm test --prefix worker و npm run test:d1. هر دو مجموعه از همین دو فایل Migration استفاده می‌کنند؛ هیچ schema fixture جداگانه‌ای باقی نمانده است. وضعیت دیتابیس Cloudflare میزبانی‌شده در این PR دوباره خوانده نشده و از روی این تست‌ها دربارهٔ آن نتیجه‌گیری نمی‌شود.

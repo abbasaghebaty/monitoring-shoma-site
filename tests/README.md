@@ -1,7 +1,32 @@
 # آزمون‌ها
 
-- آزمون‌های عمومی Worker در `worker/tests/core.test.js` قرار دارند.
-- آزمون‌های خطایابی و احراز هویت OTP در `worker/tests/auth-diagnostics.test.js` قرار دارند.
-- آزمون‌های تشخیصی از KV، D1 و Telegram API ساختگی استفاده می‌کنند و نباید به D1 زنده یا ربات واقعی متصل شوند.
-- سناریوهای پوشش‌داده‌شده شامل تنظیمات ناقص، Binding دیتابیس ناموجود، خطای Query، خطای KV، کاربر ناشناخته/غیرفعال، محدودیت ارسال، خطای Telegram API، خطای شبکه، پاسخ موفق تلگرام، requestId و پالایش لاگ‌ها هستند.
-- این آزمون‌ها جایگزین تست نهایی روی محیط Cloudflare و بررسی Runtime Logs نیستند.
+## منبع Schema تست
+
+تمام تست‌های دیتابیس از Migrationهای واقعی repository استفاده می‌کنند؛ schema fixture دستی حذف شده است.
+
+ترتیب canonical:
+1. worker/migrations/0000_baseline.sql
+2. worker/migrations/0001_product_audit_log.sql
+
+## فرمان‌ها
+
+از ریشهٔ repository:
+
+- `npm test --prefix worker` — تست‌های Node.js با SQLite in-memory؛ helper همان Migrationها را به‌ترتیب اعمال می‌کند.
+- `npm run test:d1` — تست Workers Vitest روی D1 محلی Miniflare؛ فایل‌های Migration از vitest.config.js به binding تست تزریق و از دیتابیس خالی اعمال می‌شوند.
+- `npm run build` — ساخت Frontend.
+
+## پوشش دیتابیس
+
+- ایجاد Schema از دیتابیس خالی و اجرای دوبارهٔ baseline idempotent
+- Foreign Keyها، CHECKها، generated columns و Triggerهای عملیاتی
+- ایجاد محصول و ایجاد خودکار قیمت/موجودی
+- ثبت فروش، کسر موجودی، ایجاد بدهی و immutable بودن فروش
+- خواندن repositoryهای products, inventory, sales, debts, customers و attendance و داشبورد
+- Audit create/update، JSON constraints و immutable بودن
+- rollback batch و failure guard
+- هم‌زمانی دو درخواست با Snapshot یکسان و پاسخ 409 برای بازنده
+
+## مرز تست
+
+Node SQLite، SQLite واقعی است اما Cloudflare D1 نیست. Workers Vitest/Miniflare از D1 محلی و Worker runtime شبیه‌سازی‌شده استفاده می‌کند؛ این تست نیز Production یا hosted D1 را هدف نمی‌گیرد. تطبیق DDL و Triggerهای فعلی Cloudflare با Migration canonical باید read-only در Dashboard انجام شود.

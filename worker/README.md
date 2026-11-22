@@ -10,7 +10,7 @@
 - شناسه D1 با Worker ربات فروشگاه یکسان است.
 - GET /health با SELECT 1 اتصال binding را بررسی می‌کند.
 
-هیچ Migration یا SQL تغییردهنده‌ای در این فاز اجرا نمی‌شود. جدول‌های users و attendance و تمام سوابق ورود و خروج باید حفظ شوند.
+هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نمی‌شود. زنجیرهٔ migration نسخه‌دار شامل 0000_baseline.sql و 0001_product_audit_log.sql است. تست‌ها هر دو را از صفر روی دیتابیس ایزوله اجرا می‌کنند. baseline برای اشیای موجود از IF NOT EXISTS استفاده می‌کند و جدول/ردیف موجود را حذف یا بازنویسی نمی‌کند؛ اما ساختار موجود را هم اصلاح نمی‌کند. پیش از هر مهاجرت remote باید schema preflight و backup انجام شود. جدول‌های users و attendance و سوابق ورود/خروج در Migration حذف نمی‌شوند.
 
 ## احراز هویت
 - ورود با Telegram ID و OTP پنج‌دقیقه‌ای از طریق Telegram Bot API؛ کاربر باید قبلاً ربات را باز کرده و `/start` زده باشد.
@@ -23,7 +23,8 @@
 ## مجوزها
 - owner و manager: منابع مدیریتی خواندنی
 - employee: فقط سوابق attendance خودش
-- API داده‌ها فقط GET است؛ هیچ عملیات نوشتنی فعال نیست.
+- منابع عملیاتی به‌صورت پیش‌فرض فقط خواندنی‌اند؛ تنها استثنا، ایجاد و ویرایش محدود کالا برای owner/manager است.
+- کارمند اجازه ایجاد یا ویرایش کالا ندارد.
 
 ## مسیرهای پیاده‌سازی‌شده
 - GET /health
@@ -32,7 +33,9 @@
 - POST /api/v1/auth/logout
 - GET /api/v1/auth/me
 - GET /api/v1/dashboard/summary
-- GET /api/v1/products
+- GET /api/v1/products?q=&stock=&limit=&offset=
+- POST /api/v1/products (owner/manager)
+- PATCH /api/v1/products/:productId (owner/manager)
 - GET /api/v1/inventory
 - GET /api/v1/sales و GET /api/v1/sales/:id
 - GET /api/v1/debts
@@ -40,7 +43,7 @@
 - GET /api/v1/attendance
 - GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD
 
-مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد.
+مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد. حذف کالا، وضعیت فعال/غیرفعال و تغییر موجودی نیز تا طراحی schema سازگار و قابل حسابرسی فعال نمی‌شوند.
 
 ## راه‌اندازی Cloudflare
 1. یک KV Namespace مستقل بساز و ID آن را در بخش SITE_AUTH_KV فایل worker/wrangler.toml ثبت کن.
@@ -68,3 +71,36 @@
 
 ## نکته امنیتی
 Cloudflare KV برای مصرف OTP اتمیک تضمین نمی‌کند؛ درخواست‌های هم‌زمان ممکن است race داشته باشند. پیش از استفاده حساس، این بخش باید با Durable Object یا ذخیره‌سازی اتمیک تقویت شود. CORS و عدم استفاده از cookie، مشکل third-party cookie در GitHub Pages را دور می‌زند؛ توکن فقط در حافظه صفحه نگهداری می‌شود.
+
+## نقش‌ها، ویرایش هم‌زمان و Audit کالا
+
+- نقش‌های معتبر: `owner`، `manager` و `employee`. نقش خارج از این فهرست در OTP رد می‌شود و middleware نشست نیز مستقلاً نقش جاری دیتابیس و نشست را بررسی می‌کند.
+- ویرایش کالا فقط فیلدهای واقعاً تغییرکرده را می‌نویسد. Snapshot کامل پایه و قیمت‌ها به‌عنوان optimistic concurrency token استفاده می‌شود؛ درخواست stale پاسخ 409 می‌گیرد.
+- Audit کالا با عملیات محصول در یک D1 batch ثبت می‌شود. شکست guard یا درج Audit کل batch را Rollback می‌کند.
+- Migrationها: `migrations/0000_baseline.sql` سپس `migrations/0001_product_audit_log.sql`.
+- تست‌ها با SQLite in-memory از همین دو Migration واقعی اجرا می‌شوند: `npm test`. تست‌های `npm run test:d1` نیز همان Migrationها را روی D1 محلی Miniflare اجرا می‌کنند. هیچ‌کدام hosted D1 یا تنظیمات Dashboard را اثبات نمی‌کنند.
+
+### اجرای Migration در محیط محلی آزمایشی
+
+فقط برای یک دیتابیس محلی/آزمایشی:
+
+```sh
+npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml
+```
+
+هرگز `--local` را حذف نکنید. این پروژه در این PR Migration را روی Production اجرا نمی‌کند. Migration تولیدی نیازمند تأیید جداگانه و backup/rollback plan است.
+
+> تست‌ها fixture مستقل ندارند و مستقیماً 0000_baseline.sql و 0001_product_audit_log.sql را به‌ترتیب اعمال می‌کنند. پیش از Production، تعریف واقعی Triggerهای D1 باید به‌صورت read-only با baseline مقایسه شود؛ CI به D1 زنده متصل نمی‌شود.
+
+
+سیاست نگهداری Audit: پاک‌سازی خودکار وجود ندارد و رویدادها تا زمان تعریف سیاست رسمی نگهداری می‌شوند. Worker جدید به جدول Audit نیاز دارد؛ قبل از Deploy آن به هر محیط، Migration متناظر باید در همان محیط اجرا و بررسی شده باشد. در این PR، Production migration و deploy انجام نشده‌اند.
+
+
+## Canonical migration sequence
+
+- 0000_baseline.sql: creates users, products, product_prices, inventory, sales, debts, customers and attendance, plus operational indexes and triggers.
+- 0001_product_audit_log.sql: creates product audit references, JSON/operation/request constraints, indexes and append-only triggers.
+- Fresh local initialization: npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml.
+- Test initialization uses these same files; no hand-maintained schema fixture remains.
+- For an existing D1 database, inspect all existing definitions before applying. IF NOT EXISTS is non-destructive but cannot repair a pre-existing table or trigger with an incompatible definition.
+- The hosted database was not inspected or migrated as part of this task.

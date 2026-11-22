@@ -1,12 +1,13 @@
-# تطبیق کد با دیتابیس زنده D1
+# قرارداد Schema و تطبیق با Cloudflare D1
 
-## تصمیم قطعی
+## تصمیم فعلی
 
-دیتابیس فعلی `shop-manager` مرجع داده است. ساختار آن تغییر نمی‌کند تا با کد قدیمی هماهنگ شود. اصلاح فقط در کد ربات، Worker و Frontend انجام می‌شود.
+Schema canonical پروژه در worker/migrations تعریف می‌شود. فایل 0000_baseline.sql دیتابیس تازه را از صفر می‌سازد و 0001_product_audit_log.sql Audit را اضافه می‌کند. Baseline از CREATE TABLE/INDEX/TRIGGER IF NOT EXISTS استفاده می‌کند؛ برای اشیای موجود DDL را تغییر نمی‌دهد و داده‌ای را حذف یا بازنویسی نمی‌کند.
 
-- هیچ جدول، ستون، index یا trigger جدیدی برای سازگاری با query قدیمی اضافه نمی‌شود.
-- هیچ جدول یا trigger موجودی حذف یا بازنویسی نمی‌شود.
-- داده‌های عملیاتی برای تست تغییر نمی‌کنند.
+- Migrationها در CI و محیط محلی/آزمایشی اجرا می‌شوند؛ در این PR هیچ Migration یا query نوشتنی به Production D1 ارسال نشده است.
+- دیتابیس میزبانی‌شده در این مرحله دوباره inspect نشده؛ snapshot زیر آخرین snapshot مستندشده و دریافت‌شده در 2026-11-17 است، نه ادعای وضعیت فعلی Remote.
+- پیش از اعمال Migration روی دیتابیس موجود، sqlite_master، PRAGMA table_info، foreign_key_list، index_list و تعریف Triggerها باید read-only با قرارداد canonical مقایسه شوند.
+- اگر جدول یا Trigger موجود تعریف ناسازگار داشته باشد، IF NOT EXISTS آن را تعمیر نمی‌کند. اجرای Migration باید متوقف و Migration اصلاحی forward-only با backfill/validation جداگانه طراحی شود.
 - Frontend فقط از API Worker استفاده می‌کند؛ اتصال مستقیم مرورگر به D1 ممنوع است.
 
 این snapshot بر اساس خروجی کامل `sqlite_master` و PRAGMAهایی است که در 2026-11-17 ارسال شد. `_cf_KV` و `sqlite_sequence` جداول سیستمی/زیرساختی‌اند و جزو مدل دامنه فروشگاه نیستند.
@@ -136,4 +137,101 @@
 6. routeهای خصوصی تا تکمیل auth و permission طبق `SECURITY_AND_NEXT_STEPS.md` داده برنگردانند.
 7. هر تست نوشتنی روی محیط آزمایشی جداگانه انجام شود؛ از داده زنده برای تست استفاده نشود.
 
-**ممنوع:** `ALTER`, `DROP`, migration، ساخت جدول جایگزین، حذف/تغییر trigger یا بازنویسی داده زنده برای سازگاری با کد قدیمی.
+**ممنوع در این PR:** اجرای ALTER/DROP یا هر Migration روی Production، حذف جدول/Trigger، یا بازنویسی داده زنده. تغییرات schema مجاز فقط از طریق Migration نسخه‌دار و پس از preflight و تأیید مستقل هستند.
+
+## افزونهٔ افزایشی Audit کالا (شاخه PR #4)
+
+Migration جدید `worker/migrations/0001_product_audit_log.sql` یک جدول مستقل `product_audit_log` اضافه می‌کند و ساختار جدول‌های عملیاتی موجود را تغییر نمی‌دهد.
+
+- `users.telegram_id` در snapshot تأییدشده INTEGER PRIMARY KEY است؛ ستون عامل در Audit نیز INTEGER و دارای FK با `ON DELETE RESTRICT` است.
+- `products.product_id` در snapshot تأییدشده TEXT PRIMARY KEY است؛ ستون محصول در Audit نیز TEXT و دارای FK با `ON DELETE RESTRICT` است.
+- `request_id` در هر رویداد UNIQUE است؛ Worker برای هر درخواست HTTP یک UUID جدید تولید می‌کند.
+- `previous_values` برای CREATE برابر NULL و برای UPDATE یک JSON object از فیلدهای واقعاً تغییرکرده است.
+- `new_values` یک JSON object فقط از فیلدهای واقعاً تغییرکرده (یا تمام مقادیر آغازین در CREATE) است.
+- Triggerهای BEFORE UPDATE و BEFORE DELETE تغییر و حذف عادی رویدادهای Audit را رد می‌کنند.
+- Migration در PR تعریف شده، اما روی Production اجرا نشده است.
+
+### اجرای آزمایشی
+
+تست‌های SQLite دیگر fixture دستی ندارند؛ worker/tests/helpers/sqlite-d1.js فایل‌های 0000_baseline.sql و 0001_product_audit_log.sql را به‌ترتیب روی دیتابیس in-memory اعمال می‌کند. تست D1 محلی نیز همین فایل‌ها را از binding ایزوله Miniflare اجرا می‌کند.
+
+برای اجرای دستی Wrangler فقط در حالت محلی:
+
+```sh
+npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml
+```
+
+از حذف گزینهٔ `--local` خودداری کنید. دستور بالا در این فاز اجرا نشده است.
+
+### Atomicity و هم‌زمانی
+
+در UPDATE، ابتدا Audit insert با شرط EXISTS روی Snapshot کامل خوانده‌شده (فیلدهای پایه و هر چهار قیمت) انجام می‌شود. اگر Snapshot تغییر کرده یا ردیف قیمت وجود نداشته باشد، actor به NULL تبدیل می‌شود و NOT NULL باعث شکست batch می‌شود. سپس فقط ستون‌های تغییرکرده UPDATE می‌شوند؛ بعد از هر UPDATE یک guard درج صفرردیفی دارد که در صورت `changes() = 0` عمداً NOT NULL را نقض می‌کند. D1 batch همهٔ این دستورات را در یک تراکنش اجرا می‌کند؛ هر شکست، Audit و تغییرات قبلی همان batch را Rollback می‌کند.
+
+این راهبرد محافظه‌کارانه است: حتی تغییر هم‌زمان دو فیلد مستقل باعث 409 برای درخواست دوم می‌شود و کاربر باید دادهٔ تازه را بارگذاری کند. دسترسی privileged مستقیم به D1 همچنان می‌تواند schema، triggerها یا رکوردها را تغییر دهد؛ append-only بودن در برابر مدیر دارای اختیار DDL تضمین مطلق نیست.
+
+### محدودهٔ اثبات تست SQLite
+
+Migrationهای مخزن اکنون مرجع ساخت دیتابیس آزمایشی‌اند؛ fixture جداگانه حذف شده است. این کار drift میان تست و زنجیرهٔ Migration را کاهش می‌دهد. بااین‌حال، Migration baseline بر اساس schema snapshot مستندشده ساخته شده، نه از dump تازهٔ Remote. بنابراین برابری کامل آن با D1 میزبانی‌شده هنوز اثبات نشده و نیازمند مقایسهٔ read-only در Cloudflare Dashboard است.
+
+
+### وابستگی استقرار
+
+کد Worker این شاخه برای CREATE/UPDATE موفق به وجود جدول و Triggerهای Audit وابسته است. اگر Worker جدید بدون اجرای Migration متناظر در محیط هدف منتشر شود، عملیات نوشتن محصول شکست می‌خورند. ترتیب لازم پس از تأیید مستقل: backup و برنامه بازیابی، اجرای Migration روی محیط آزمایشی، بررسی schema/Triggerها، سپس اجرای Migration در محیط هدف و Deploy هماهنگ Worker. هیچ‌یک از این مراحل Production در این PR انجام نشده است.
+
+
+
+## آزمون D1 محلی در CI
+
+علاوه بر تست‌های Node.js و SQLite، فایل `tests/d1-runtime.test.js` با افزونه رسمی Workers Vitest در runtime محلی `workerd` اجرا می‌شود. Binding دیتابیس از `worker/wrangler.toml` خوانده می‌شود؛ چون هیچ `remote = true` تعریف نشده، Miniflare از D1 محلی و ایزوله استفاده می‌کند. Migrationهای واقعی baseline و audit فقط روی همین binding محلی اجرا می‌شوند.
+
+فرمان اجرا از ریشه مخزن:
+
+```sh
+npm run test:d1
+```
+
+این آزمون‌ها خود API واقعی D1 در محیط محلی Cloudflare Workers/Miniflare را به کار می‌گیرند؛ از جمله `DB.batch()`، `DB.exec()`، `meta.changes`، Triggerها و رفتار هم‌زمانی دو درخواست. آن‌ها از adapter مبتنی بر `node:sqlite` جدا هستند.
+
+**مرز اثبات:** Miniflare از runtime و پیاده‌سازی شبیه‌ساز D1 استفاده می‌کند و به دیتابیس میزبانی‌شدهٔ Production متصل نیست. بنابراین این تست‌ها اثبات اجرای واقعی روی Cloudflare account یا برابری کامل محیط محلی و hosted D1 نیستند. بررسی read-only Schema/Trigger واقعی و یک آزمون کنترل‌شده روی D1 غیر Production، پیش از تأیید نهایی عملیاتی، همچنان لازم است.
+
+CI برای نصب وابستگی‌ها از npm 11 استفاده می‌کند تا با خطای resolver در npm 10 هنگام حل peer dependencies مربوط به Vitest مواجه نشود. این تغییر صرفاً ابزار CI است و به runtime Worker یا دیتابیس دست نمی‌زند.
+
+
+## Canonical schema: responsibilities and constraints
+
+| Table | Responsibility / key | Relationships and key constraints |
+|---|---|---|
+| users | حساب‌های اپ؛ telegram_id INTEGER PRIMARY KEY | role محدود به owner/manager/employee؛ full_name الزامی؛ is_active پیش‌فرض 1 |
+| products | کاتالوگ؛ product_id TEXT PRIMARY KEY | شناسهٔ رشته‌ای؛ نام الزامی؛ مشخصات بسته nullable |
+| product_prices | چهار قیمت جاری؛ PK و FK روی product_id | قیمت‌ها INTEGER، NOT NULL، پیش‌فرض صفر و CHECK غیرمنفی |
+| inventory | موجودی جاری؛ PK و FK روی product_id | quantity INTEGER، NOT NULL، پیش‌فرض صفر و CHECK غیرمنفی |
+| sales | هر ردیف یک فروش محصول با snapshot قیمت | FK به products؛ quantity مثبت؛ مبالغ مشتق‌شده STORED generated؛ UPDATE/DELETE ممنوع |
+| debts | ماندهٔ بدهی فروش | sale_id هم PK و هم FK به sales؛ amount مثبت؛ status فقط open/settled |
+| customers | فهرست مشتریان مستقل | id INTEGER AUTOINCREMENT؛ sales.customer_name فقط snapshot متنی است و FK مشتری ندارد |
+| attendance | ورود/خروج کاربران | FK عددی به users.telegram_id؛ check_in الزامی |
+| product_audit_log | رویدادهای تغییر کالا | FK به users و products؛ operation محدود؛ JSON object؛ request_id یکتا؛ UPDATE/DELETE با Trigger رد می‌شود |
+
+### Triggerها و Indexهای baseline
+
+- trg_product_initialize: بعد از ایجاد محصول، inventory با quantity=0 و product_prices با قیمت‌های پیش‌فرض ایجاد می‌کند.
+- trg_sales_check_stock: فروش با موجودی ناکافی را با INSUFFICIENT_STOCK رد می‌کند.
+- trg_sales_update_stock: بعد از درج فروش، موجودی را کم می‌کند.
+- trg_sales_create_debt: برای balance مثبت، یک بدهی متصل به sales.id می‌سازد.
+- trg_sales_prevent_update و trg_sales_prevent_delete: فروش را immutable می‌کنند.
+- trg_inventory_updated_at و trg_prices_updated_at: timestamp را در تغییر مقدار/قیمت تازه می‌کنند.
+- Indexهای attendance، sales، debts و Audit برای فیلترها و ترتیب‌های استفاده‌شده توسط Worker تعریف شده‌اند.
+
+### Migration order و initialization
+
+از ریشه repository اجرا کن: npx wrangler d1 migrations list shop-manager --local --config worker/wrangler.toml و سپس npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml. Wrangler باید 0000_baseline.sql را پیش از 0001_product_audit_log.sql اعمال کند. این فرمان فقط دیتابیس محلی Wrangler را هدف می‌گیرد. در CI، فایل‌ها مستقیماً و به همین ترتیب روی D1 محلی Miniflare و SQLite in-memory اجرا می‌شوند.
+
+### Adopting an existing D1 database safely
+
+Baseline برای دیتابیس موجود idempotent است اما migration repair نیست. پیش از هر اجرای remote:
+1. از sqlite_master تعریف همهٔ جدول‌ها، indexها و Triggerها را export/read کنید.
+2. برای تمام جدول‌های بالا PRAGMA table_info، foreign_key_list، index_list و foreign_key_check اجرا کنید.
+3. تعریف‌ها را با baseline و این سند مقایسه کنید.
+4. اگر تعریف موجود mismatch دارد، اجرای baseline/audit را متوقف کنید و migration اصلاحی مشخص بسازید؛ IF NOT EXISTS ستون‌ها یا Triggerهای موجود را تغییر نمی‌دهد.
+5. اگر schema برابر است، پس از backup و تأیید مستقل، migrationهای pending را با Wrangler اجرا کنید. هرگز با دست جدول d1_migrations را تغییر ندهید.
+
+**Physical database status: Not verified in this task.** هیچ Cloudflare D1 connector یا دسترسی Dashboard/remote SQL در این محیط در دسترس نبود. بنابراین خالی/نیمه‌کاره/کامل بودن دیتابیس واقعی قابل اعلام نیست.

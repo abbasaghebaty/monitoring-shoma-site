@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { LayoutDashboard, Package, ShoppingCart, Warehouse, Users, Wallet, ChartNoAxesCombined, Clock3, Search, LogOut, RefreshCw, Menu, ChevronLeft, AlertCircle, Boxes } from "lucide-react";
 import { api } from "./lib/api/endpoints";
 import { setAccessToken, clearAccessToken } from "./lib/api/client";
+import ProductsPage from "./pages/ProductsPage";
+import { getInitialPage, getVisibleNavigation, isKnownRole } from "./modules/access";
 
 const NAV = [
-  ["داشبورد", "dashboard", LayoutDashboard], ["محصولات", "products", Package],
+  ["داشبورد", "dashboard", LayoutDashboard], ["مدیریت اجناس", "products", Package],
   ["انبار و موجودی", "inventory", Warehouse], ["فروش", "sales", ShoppingCart],
   ["بدهی‌ها", "debts", Wallet], ["مشتریان", "customers", Users],
   ["ورود و خروج", "attendance", Clock3], ["گزارش فروش", "reports", ChartNoAxesCombined],
@@ -76,11 +78,6 @@ function Dashboard({ data }) {
 }
 
 const TABLES = {
-  products: { title:"محصولات", load:api.products, columns:[
-    {key:"name",label:"نام محصول"},{key:"product_id",label:"شناسه"},{key:"unit",label:"واحد"},
-    {key:"purchase_price",label:"قیمت خرید",render:v=>money(v)},{key:"sell_price",label:"قیمت فروش",render:v=>money(v)},
-    {key:"consumer_price",label:"مصرف‌کننده",render:v=>money(v)},{key:"market_price",label:"بازار",render:v=>money(v)},{key:"quantity",label:"موجودی",render:v=>number(v)}
-  ]},
   inventory: { title:"انبار و موجودی", load:api.inventory, columns:[
     {key:"name",label:"محصول"},{key:"quantity",label:"موجودی",render:v=>number(v)},{key:"unit",label:"واحد"},
     {key:"purchase_price",label:"قیمت خرید",render:v=>money(v)},{key:"updated_at",label:"آخرین به‌روزرسانی",render:v=>date(v)}
@@ -117,7 +114,12 @@ export default function App() {
   const [reportData,setReportData] = useState(null);
   const [reportFrom,setReportFrom] = useState(new Date(Date.now()-29*86400000).toISOString().slice(0,10));
   const [reportTo,setReportTo] = useState(new Date().toISOString().slice(0,10));
-  const allowedNav = useMemo(()=>NAV.filter(([,key])=>user?.role !== "employee" || key === "attendance"),[user]);
+  const allowedNav = useMemo(()=>getVisibleNavigation(user?.role,NAV),[user]);
+  function handleLogin(nextUser) {
+    if (!isKnownRole(nextUser?.role)) { clearAccessToken(); setUser(null); setActive("dashboard"); return; }
+    setActive(getInitialPage(nextUser.role));
+    setUser(nextUser);
+  }
   const title = NAV.find(([,key])=>key===active)?.[0] || "داشبورد";
   async function load() {
     if (!user) return;
@@ -125,6 +127,7 @@ export default function App() {
     try {
       if (active === "dashboard") { setData(await api.dashboard()); setRows([]); }
       else if (active === "reports") { setReportData(await api.salesReport({from:reportFrom,to:reportTo})); setRows([]); }
+      else if (active === "products") { setRows([]); }
       else {
         const config = TABLES[active];
         if (!config) { setRows([]); }
@@ -136,7 +139,7 @@ export default function App() {
   useEffect(()=>{load();},[user,active,refresh,reportFrom,reportTo]);
   useEffect(()=>{if(active!=="dashboard"){const timer=setTimeout(load,250);return()=>clearTimeout(timer);}},[query]);
   async function logout() { try { await api.logout(); } catch {} clearAccessToken(); setUser(null); setData(null); setRows([]); }
-  if (!user) return <Login onLogin={setUser}/>;
+  if (!user || !isKnownRole(user.role)) return <Login onLogin={handleLogin}/>;
   const table = TABLES[active];
   const pageTitle = active==="dashboard"?"داشبورد مدیریتی":table?.title || title;
   return <div className="app-shell" dir="rtl">
@@ -148,12 +151,13 @@ export default function App() {
     <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={()=>setMobile(!mobile)}><Menu/></button><div className="breadcrumb">شما <ChevronLeft size={14}/><b>{pageTitle}</b></div><div className="top-actions"><span className="api-indicator">اتصال امن فعال</span><button className="icon-button" onClick={()=>setRefresh(v=>v+1)} title="به‌روزرسانی"><RefreshCw size={17}/></button></div></header>
       <div className="content"><div className="page-title"><div><span className="eyebrow">مدیریت فروشگاه شما</span><h1>{pageTitle}</h1><p>اطلاعات زنده از دیتابیس مرکزی فروشگاه</p></div></div>
         {active==="reports" && <div className="toolbar date-toolbar"><label>از <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>تا <input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label></div>}
-        {active!=="dashboard" && active!=="reports" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
-        <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>
+        {active!=="dashboard" && active!=="reports" && active!=="products" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
+        {active!=="products" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
+        {active==="products" && <ProductsPage canManage={user.role==="owner" || user.role==="manager"}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
-        {!loading&&!error&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
+        {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
         {!loading&&!error&&active==="reports"&&reportData&&<><div className="metrics-grid compact"><div className="metric"><div className="metric-top">تعداد فروش</div><strong>{number(reportData.totals?.sale_count)}</strong></div><div className="metric"><div className="metric-top">مبلغ کل</div><strong>{money(reportData.totals?.total_amount)}</strong></div><div className="metric"><div className="metric-top">پرداخت‌شده</div><strong>{money(reportData.totals?.paid_amount)}</strong></div><div className="metric"><div className="metric-top">مانده</div><strong>{money(reportData.totals?.balance_amount)}</strong></div></div><Table columns={[{key:"sale_date",label:"تاریخ"},{key:"sale_count",label:"تعداد فروش",render:v=>number(v)},{key:"total_amount",label:"مبلغ کل",render:v=>money(v)}]} rows={reportData.daily||[]}/></>}
-      </div><footer>شما · پنل مدیریت <span>داده‌ها فقط‌خواندنی هستند</span></footer>
+      </div><footer>شما · پنل مدیریت <span>عملیات کالا فقط برای نقش‌های مجاز فعال است؛ سوابق فروش تغییرناپذیرند</span></footer>
     </main>{mobile&&<button className="sidebar-scrim" onClick={()=>setMobile(false)} aria-label="بستن منو"/>}
   </div>;
 }

@@ -9,6 +9,14 @@
 
 مرورگر هرگز مستقیماً به D1 وصل نمی‌شود. شناسه دیتابیس و secretها فقط در تنظیمات Worker باقی می‌مانند.
 
+## رابط و عملیات پنل
+
+- پوسته فعلی پنل و جابه‌جایی بخش‌ها در `src/App.jsx` انجام می‌شود؛ در این نسخه React Router وجود ندارد.
+- `src/modules/registry.js` فهرست مفهومی ماژول‌هاست و منبع منوی runtime نیست.
+- بخش مدیریت اجناس در `src/pages/ProductsPage.jsx` به API احراز هویت‌شده Worker متصل است.
+- تنها عملیات نوشتنی فعال در این فاز، ایجاد و ویرایش مشخصات/قیمت کالا برای نقش‌های owner و manager است.
+- تغییر موجودی، حذف کالا، دسته‌بندی، بارکد و وضعیت فعال‌بودن تا زمان پشتیبانی schema و audit مستقل فعال نمی‌شوند.
+
 ## اصول طراحی
 
 1. ماژولار بودن دامنه‌ها: کالا، موجودی، فروش، خرید، مشتری، تأمین‌کننده، مالی، گزارش و تنظیمات.
@@ -22,3 +30,13 @@
 ## URL انتشار
 
 این مخزن یک GitHub Pages project site است؛ base فعلی در Vite برابر `/monitoring-shoma-site/` تنظیم شده است.
+
+## کنترل نقش و یکپارچگی ویرایش کالا
+
+- قرارداد نقش در Worker فقط `owner`، `manager` و `employee` است؛ OTP و middleware نشست هر دو whitelist را بررسی می‌کنند.
+- Frontend برای employee صفحه attendance را به‌عنوان صفحهٔ اولیه انتخاب می‌کند و نقش ناشناخته هیچ navigation دریافت نمی‌کند.
+- ویرایش کالا با Snapshot کامل و optimistic concurrency control انجام می‌شود؛ درخواست stale با 409 رد می‌شود.
+- ایجاد/ویرایش و Audit در یک D1 batch اتمیک هستند. Migration افزایشی در `worker/migrations` قرار دارد و در این شاخه روی Production اجرا نمی‌شود.
+- تست‌های Repository با SQLite in-memory از Migrationهای واقعی مخزن اجرا می‌شوند؛ تست Workers Vitest نیز همان فایل‌ها را روی D1 محلی Miniflare اجرا می‌کند. این تست‌ها Remote D1 یا Production را اثبات نمی‌کنند.
+
+> محدودیت تست: تست‌ها از Migrationهای واقعی مخزن استفاده می‌کنند و fixture دستی حذف شده است. برابری این Migrationها با DDL فعلی D1 میزبانی‌شده هنوز نیازمند تطبیق read-only در Cloudflare Dashboard است.
