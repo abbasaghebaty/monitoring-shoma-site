@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "worker:dev": "npm --prefix worker run dev",
-    "worker:deploy": "npm --prefix worker run deploy"
+    "worker:deploy": "npm --prefix worker run deploy",
+    "test:d1": "vitest run --config vitest.config.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -19,5 +20,8 @@
     "lucide-react": "latest",
     "recharts": "latest"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.0.0",
+    "vitest": "^4.1.0"
+  }
 }
