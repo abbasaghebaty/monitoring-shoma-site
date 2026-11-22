@@ -18,15 +18,16 @@ function splitSqlStatements(sql) {
   let current = "";
   let insideTrigger = false;
 
-  for (const line of sql.split(/\\r?\\n/)) {
+  for (const line of sql.split(String.fromCharCode(10))) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("--") || /^PRAGMA\\b/i.test(trimmed)) continue;
+    const upper = trimmed.toUpperCase();
+    if (!trimmed || trimmed.startsWith("--") || upper.startsWith("PRAGMA ")) continue;
 
-    if (/^CREATE\\s+TRIGGER\\b/i.test(trimmed)) insideTrigger = true;
-    current += (current ? "\\n" : "") + line;
+    if (upper.startsWith("CREATE TRIGGER ")) insideTrigger = true;
+    current += (current ? String.fromCharCode(10) : "") + line;
 
     if (insideTrigger) {
-      if (/^END;?$/i.test(trimmed)) {
+      if (upper === "END;" || upper === "END") {
         statements.push(current.trim().replace(/;$/, ""));
         current = "";
         insideTrigger = false;
