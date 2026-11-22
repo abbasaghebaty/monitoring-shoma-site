@@ -84,4 +84,4 @@ API خرید، تأمین‌کننده، هزینه، invoice چندقلمی، l
 - محصولات از products و join با product_prices و inventory خوانده می‌شوند.
 - فروش از sales و بدهی از debts.sale_id خوانده می‌شود.
 - attendance فقط SELECT است و هیچ write endpoint برای آن وجود ندارد.
-- هیچ migration یا تغییر D1 در این شاخه انجام نمی‌شود.
+- زنجیرهٔ schema نسخه‌دار در worker/migrations شامل baseline و audit است؛ در این PR هیچ migration یا query نوشتنی روی Production D1 اجرا نشده است.
