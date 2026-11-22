@@ -1,6 +1,6 @@
 # نقشه راه اجرایی
 
-اصل ثابت: schema فعلی D1 تغییر نمی‌کند؛ جدول‌های users و attendance و سوابق آن‌ها حفظ می‌شوند.
+اصل ثابت: schema فقط از طریق Migrationهای نسخه‌دار و قابل بازبینی تغییر می‌کند. baseline و audit در شاخه feature تعریف شده‌اند؛ هیچ Migrationای روی Production اجرا نشده و جدول‌های users/attendance و سوابقشان در Migrationها حذف یا بازنویسی نمی‌شوند.
 
 ## انجام‌شده در شاخه اتصال
 - [x] ساخت API Worker و binding پیکربندی‌شده به D1 shop-manager
