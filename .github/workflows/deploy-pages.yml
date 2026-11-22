@@ -21,6 +21,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Update npm to a peer-resolution version supported by the Node 22 runner
+        run: npm install --global npm@11.21.2
       - name: Install dependencies
         run: npm install
       - name: Test Worker utilities and isolated SQLite integration
