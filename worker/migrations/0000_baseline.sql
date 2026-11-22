@@ -118,10 +118,8 @@ END;
 CREATE TRIGGER IF NOT EXISTS trg_sales_check_stock
 BEFORE INSERT ON sales
 BEGIN
-  SELECT CASE
-    WHEN COALESCE((SELECT quantity FROM inventory WHERE product_id = NEW.product_id), 0) < NEW.quantity
-    THEN RAISE(ABORT, 'INSUFFICIENT_STOCK')
-  END;
+  SELECT RAISE(ABORT, 'INSUFFICIENT_STOCK')
+  WHERE COALESCE((SELECT quantity FROM inventory WHERE product_id = NEW.product_id), 0) < NEW.quantity;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_sales_update_stock
