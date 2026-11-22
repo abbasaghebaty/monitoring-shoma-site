@@ -103,6 +103,7 @@ export async function requestOtp(request, env, context = null) {
     });
   }
 
+  setStage(context, "configuration_validation");
   const missing = missingConfig(env, true);
   if (missing.length) return configFailure(context, missing);
   logEvent(context, "info", "OTP_CONFIG_OK", { dependencyStatus: "configured" });
