@@ -91,3 +91,6 @@ npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.t
 هرگز `--local` را حذف نکنید. این پروژه در این PR Migration را روی Production اجرا نمی‌کند. Migration تولیدی نیازمند تأیید جداگانه و backup/rollback plan است.
 
 > تست SQLite از fixture بازسازی‌شده بر پایهٔ snapshot مستندشده استفاده می‌کند. پیش از Production، تعریف واقعی Triggerهای D1 باید به‌صورت read-only با fixture مقایسه شود؛ CI به D1 زنده متصل نمی‌شود.
+
+
+سیاست نگهداری Audit: پاک‌سازی خودکار وجود ندارد و رویدادها تا زمان تعریف سیاست رسمی نگهداری می‌شوند. Worker جدید به جدول Audit نیاز دارد؛ قبل از Deploy آن به هر محیط، Migration متناظر باید در همان محیط اجرا و بررسی شده باشد. در این PR، Production migration و deploy انجام نشده‌اند.

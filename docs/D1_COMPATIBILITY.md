@@ -171,3 +171,8 @@ npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.t
 ### محدودهٔ اثبات تست SQLite
 
 Fixture تست یک بازسازی مستقل و حداقلی از ستون‌ها، کلیدها و رفتار Trigger محصول بر اساس snapshot مستندشده است؛ فایل DDL کامل استخراج‌شده از Production در مخزن موجود نیست. بنابراین تست‌ها رفتار واقعی SQLite، FK، CHECK، Trigger fixture، Rollback و CAS را اثبات می‌کنند، اما برابری بایت‌به‌بایت Trigger آزمایشی با Trigger فعلی Production و اجرای Cloudflare D1 را اثبات نمی‌کنند. این دو مورد نیازمند مقایسهٔ read-only در Cloudflare Dashboard هستند.
+
+
+### وابستگی استقرار
+
+کد Worker این شاخه برای CREATE/UPDATE موفق به وجود جدول و Triggerهای Audit وابسته است. اگر Worker جدید بدون اجرای Migration متناظر در محیط هدف منتشر شود، عملیات نوشتن محصول شکست می‌خورند. ترتیب لازم پس از تأیید مستقل: backup و برنامه بازیابی، اجرای Migration روی محیط آزمایشی، بررسی schema/Triggerها، سپس اجرای Migration در محیط هدف و Deploy هماهنگ Worker. هیچ‌یک از این مراحل Production در این PR انجام نشده است.
