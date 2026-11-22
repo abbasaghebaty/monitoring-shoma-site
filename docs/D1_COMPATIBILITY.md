@@ -1,12 +1,13 @@
-# تطبیق کد با دیتابیس زنده D1
+# قرارداد Schema و تطبیق با Cloudflare D1
 
-## تصمیم قطعی
+## تصمیم فعلی
 
-دیتابیس فعلی `shop-manager` مرجع داده است. ساختار آن تغییر نمی‌کند تا با کد قدیمی هماهنگ شود. اصلاح فقط در کد ربات، Worker و Frontend انجام می‌شود.
+Schema canonical پروژه در worker/migrations تعریف می‌شود. فایل 0000_baseline.sql دیتابیس تازه را از صفر می‌سازد و 0001_product_audit_log.sql Audit را اضافه می‌کند. Baseline از CREATE TABLE/INDEX/TRIGGER IF NOT EXISTS استفاده می‌کند؛ برای اشیای موجود DDL را تغییر نمی‌دهد و داده‌ای را حذف یا بازنویسی نمی‌کند.
 
-- هیچ جدول، ستون، index یا trigger جدیدی برای سازگاری با query قدیمی اضافه نمی‌شود. Migration افزایشی `worker/migrations/0001_product_audit_log.sql` صرفاً برای Audit کالا تعریف شده و تا تأیید جداگانه نباید روی Production اجرا شود.
-- هیچ جدول یا trigger موجودی حذف یا بازنویسی نمی‌شود.
-- داده‌های عملیاتی برای تست تغییر نمی‌کنند.
+- Migrationها در CI و محیط محلی/آزمایشی اجرا می‌شوند؛ در این PR هیچ Migration یا query نوشتنی به Production D1 ارسال نشده است.
+- دیتابیس میزبانی‌شده در این مرحله دوباره inspect نشده؛ snapshot زیر آخرین snapshot مستندشده و دریافت‌شده در 2026-11-17 است، نه ادعای وضعیت فعلی Remote.
+- پیش از اعمال Migration روی دیتابیس موجود، sqlite_master، PRAGMA table_info، foreign_key_list، index_list و تعریف Triggerها باید read-only با قرارداد canonical مقایسه شوند.
+- اگر جدول یا Trigger موجود تعریف ناسازگار داشته باشد، IF NOT EXISTS آن را تعمیر نمی‌کند. اجرای Migration باید متوقف و Migration اصلاحی forward-only با backfill/validation جداگانه طراحی شود.
 - Frontend فقط از API Worker استفاده می‌کند؛ اتصال مستقیم مرورگر به D1 ممنوع است.
 
 این snapshot بر اساس خروجی کامل `sqlite_master` و PRAGMAهایی است که در 2026-11-17 ارسال شد. `_cf_KV` و `sqlite_sequence` جداول سیستمی/زیرساختی‌اند و جزو مدل دامنه فروشگاه نیستند.
