@@ -37,6 +37,6 @@
 - Frontend برای employee صفحه attendance را به‌عنوان صفحهٔ اولیه انتخاب می‌کند و نقش ناشناخته هیچ navigation دریافت نمی‌کند.
 - ویرایش کالا با Snapshot کامل و optimistic concurrency control انجام می‌شود؛ درخواست stale با 409 رد می‌شود.
 - ایجاد/ویرایش و Audit در یک D1 batch اتمیک هستند. Migration افزایشی در `worker/migrations` قرار دارد و در این شاخه روی Production اجرا نمی‌شود.
-- تست‌های Repository با SQLite واقعی in-memory و schema/trigger fixture انجام می‌شوند؛ این تست‌ها رفتار کامل Cloudflare D1 runtime را جایگزین نمی‌کنند.
+- تست‌های Repository با SQLite in-memory از Migrationهای واقعی مخزن اجرا می‌شوند؛ تست Workers Vitest نیز همان فایل‌ها را روی D1 محلی Miniflare اجرا می‌کند. این تست‌ها Remote D1 یا Production را اثبات نمی‌کنند.
 
 > محدودیت تست: SQLite fixture بر اساس schema snapshot مستندشده بازسازی شده است؛ DDL کامل زنده و اجرای Cloudflare D1 در CI در دسترس نیست. تطبیق Trigger واقعی با fixture باید در Cloudflare Dashboard به‌صورت read-only تأیید شود.
