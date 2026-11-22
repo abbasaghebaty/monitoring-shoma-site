@@ -11,7 +11,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_PRODUCT_SCHEMA_SQL: read("./worker/tests/fixtures/product-schema.sql")
-            .replace(/^PRAGMA foreign_keys = ON;\\s*/i, ""),
+            .replace("PRAGMA foreign_keys = ON;", ""),
           TEST_AUDIT_MIGRATION_SQL: read("./worker/migrations/0001_product_audit_log.sql"),
         },
       },
