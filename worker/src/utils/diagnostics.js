@@ -27,7 +27,8 @@ export function logEvent(context, level, event, fields = {}) {
     event,
     requestId: context?.requestId || null,
     rayId: context?.rayId || null,
-    stage: context?.stage || null,\n    elapsedMs: Number.isFinite(context?.startedAt) ? Math.max(0, Date.now() - context.startedAt) : null,
+    stage: context?.stage || null,
+    elapsedMs: Number.isFinite(context?.startedAt) ? Math.max(0, Date.now() - context.startedAt) : null,
     ...fields,
   };
   const output = JSON.stringify(record);
