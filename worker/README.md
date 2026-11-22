@@ -23,7 +23,8 @@
 ## مجوزها
 - owner و manager: منابع مدیریتی خواندنی
 - employee: فقط سوابق attendance خودش
-- API داده‌ها فقط GET است؛ هیچ عملیات نوشتنی فعال نیست.
+- منابع عملیاتی به‌صورت پیش‌فرض فقط خواندنی‌اند؛ تنها استثنا، ایجاد و ویرایش محدود کالا برای owner/manager است.
+- کارمند اجازه ایجاد یا ویرایش کالا ندارد.
 
 ## مسیرهای پیاده‌سازی‌شده
 - GET /health
@@ -32,7 +33,9 @@
 - POST /api/v1/auth/logout
 - GET /api/v1/auth/me
 - GET /api/v1/dashboard/summary
-- GET /api/v1/products
+- GET /api/v1/products?q=&stock=&limit=&offset=
+- POST /api/v1/products (owner/manager)
+- PATCH /api/v1/products/:productId (owner/manager)
 - GET /api/v1/inventory
 - GET /api/v1/sales و GET /api/v1/sales/:id
 - GET /api/v1/debts
@@ -40,7 +43,7 @@
 - GET /api/v1/attendance
 - GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD
 
-مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد.
+مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد. حذف کالا، وضعیت فعال/غیرفعال و تغییر موجودی نیز تا طراحی schema سازگار و قابل حسابرسی فعال نمی‌شوند.
 
 ## راه‌اندازی Cloudflare
 1. یک KV Namespace مستقل بساز و ID آن را در بخش SITE_AUTH_KV فایل worker/wrangler.toml ثبت کن.
