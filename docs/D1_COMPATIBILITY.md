@@ -176,3 +176,21 @@ Fixture تست یک بازسازی مستقل و حداقلی از ستون‌ه
 ### وابستگی استقرار
 
 کد Worker این شاخه برای CREATE/UPDATE موفق به وجود جدول و Triggerهای Audit وابسته است. اگر Worker جدید بدون اجرای Migration متناظر در محیط هدف منتشر شود، عملیات نوشتن محصول شکست می‌خورند. ترتیب لازم پس از تأیید مستقل: backup و برنامه بازیابی، اجرای Migration روی محیط آزمایشی، بررسی schema/Triggerها، سپس اجرای Migration در محیط هدف و Deploy هماهنگ Worker. هیچ‌یک از این مراحل Production در این PR انجام نشده است.
+
+
+
+## آزمون D1 محلی در CI
+
+علاوه بر تست‌های Node.js و SQLite، فایل `tests/d1-runtime.test.js` با افزونه رسمی Workers Vitest در runtime محلی `workerd` اجرا می‌شود. Binding دیتابیس از `worker/wrangler.toml` خوانده می‌شود؛ چون هیچ `remote = true` تعریف نشده، Miniflare از D1 محلی و ایزوله استفاده می‌کند. Fixture پایه و Migration واقعی Audit فقط روی همین binding محلی اجرا می‌شوند.
+
+فرمان اجرا از ریشه مخزن:
+
+```sh
+npm run test:d1
+```
+
+این آزمون‌ها خود API واقعی D1 در محیط محلی Cloudflare Workers/Miniflare را به کار می‌گیرند؛ از جمله `DB.batch()`، `DB.exec()`، `meta.changes`، Triggerها و رفتار هم‌زمانی دو درخواست. آن‌ها از adapter مبتنی بر `node:sqlite` جدا هستند.
+
+**مرز اثبات:** Miniflare از runtime و پیاده‌سازی شبیه‌ساز D1 استفاده می‌کند و به دیتابیس میزبانی‌شدهٔ Production متصل نیست. بنابراین این تست‌ها اثبات اجرای واقعی روی Cloudflare account یا برابری کامل محیط محلی و hosted D1 نیستند. بررسی read-only Schema/Trigger واقعی و یک آزمون کنترل‌شده روی D1 غیر Production، پیش از تأیید نهایی عملیاتی، همچنان لازم است.
+
+CI برای نصب وابستگی‌ها از npm 11 استفاده می‌کند تا با خطای resolver در npm 10 هنگام حل peer dependencies مربوط به Vitest مواجه نشود. این تغییر صرفاً ابزار CI است و به runtime Worker یا دیتابیس دست نمی‌زند.
