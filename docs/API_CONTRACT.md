@@ -58,6 +58,14 @@
 - GET /api/v1/attendance?from=&to=&limit=&offset=
 - GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD&channel=
 
+## مدیریت کالا
+
+- `POST /api/v1/products` — ایجاد کالا بر اساس ستون‌های واقعی `products` و قیمت‌های `product_prices`؛ Trigger موجود، ردیف موجودی صفر را ایجاد می‌کند.
+- `PATCH /api/v1/products/:productId` — ویرایش مشخصات پایه و چهار نوع قیمت؛ شناسه اصلی کالا تغییر نمی‌کند.
+- هر دو مسیر فقط برای نقش‌های `owner` و `manager` و فقط با نشست معتبر مجازند.
+- جست‌وجوی `GET /api/v1/products` بر اساس نام یا شناسه است و فیلتر موجودی `stock=in_stock|out_of_stock` را می‌پذیرد.
+- حذف، غیرفعال‌سازی، بارکد، دسته‌بندی و تغییر موجودی در این قرارداد نیستند؛ schema فعلی آن‌ها را پشتیبانی نمی‌کند.
+
 ## مجوز
 
 - owner و manager: منابع مدیریتی خواندنی
