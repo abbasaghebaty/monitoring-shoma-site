@@ -15,7 +15,7 @@
 
 ## قرارداد D1
 
-ساختار زنده تغییر نمی‌کند:
+Schema canonical از Migrationهای versioned ساخته می‌شود:
 - `products`: شناسه متنی، نام، واحد، package_quantity، weight، weight_unit، description
 - `product_prices`: purchase_price، sell_price، consumer_price، market_price
 - `inventory`: quantity و updated_at
@@ -42,7 +42,7 @@ Migration افزایشی `worker/migrations/0001_product_audit_log.sql` جدول
 
 Audit با تغییر کالا در همان D1 batch ثبت می‌شود. UPDATE و DELETE عادی توسط Trigger رد می‌شوند. درخواست HTTP جدید request ID جدید می‌گیرد؛ این API قرارداد Idempotency-Key ندارد، بنابراین retry در قالب درخواست جدید رویداد جدید می‌سازد. دسترسی privileged مستقیم به D1 همچنان قادر به تغییر schema یا حذف Triggerهاست.
 
-Migration فقط در دیتابیس SQLite آزمایشی در تست‌ها اجرا شده است؛ Production اجرا نشده و قبل از هر استفادهٔ زنده نیازمند تأیید و اجرای جداگانه است.
+Migrationها در SQLite in-memory و D1 محلی Miniflare از فایل‌های واقعی repository اجرا می‌شوند؛ Production اجرا نشده و قبل از هر استفادهٔ زنده نیازمند تطبیق schema و Triggerهای remote، backup و تأیید جداگانه است.
 
 ## API
 
