@@ -321,14 +321,44 @@ describe("inventory workspace master-data D1 integration", () => {
     const audit = await env.DB.prepare("SELECT COUNT(*) count FROM inventory_workspace_audit WHERE entity_id=?").bind(brand.id).first();
     expect(Number(audit.count)).toBe(2);
   });
-  it("exposes master data only to managers and supports authenticated create", async () => {
+  it("allows all valid roles to manage master data and rejects unknown roles", async () => {
     const url = new URL("https://worker.test/api/v1/inventory-workspace/brands");
-    const req = new Request(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"Route brand"})});
-    const forbidden = await inventoryWorkspaceRoutes(req,{DB:env.DB},url,{telegram_id:actorTelegramId,role:"employee"},{requestId:id("forbidden")});
-    expect(forbidden.status).toBe(403);
-    const created = await inventoryWorkspaceRoutes(req,{DB:env.DB},url,manager,{requestId:id("allowed")});
-    expect(created.status).toBe(201);
-    const listed = await listInventoryEntity(env.DB,"brands",url);
-    expect(listed.items.some(item=>item.name==="Route brand")).toBe(true);
+    const makeRequest = (name) => new Request(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+
+    const invalidRole = await inventoryWorkspaceRoutes(
+      makeRequest("Invalid role brand"),
+      { DB: env.DB },
+      url,
+      { telegram_id: actorTelegramId, role: "admin" },
+      { requestId: id("invalid-role") },
+    );
+    expect(invalidRole.status).toBe(403);
+
+    const employeeCreated = await inventoryWorkspaceRoutes(
+      makeRequest("Employee brand"),
+      { DB: env.DB },
+      url,
+      { telegram_id: actorTelegramId, role: "employee" },
+      { requestId: id("employee-create") },
+    );
+    expect(employeeCreated.status).toBe(201);
+
+    const managerCreated = await inventoryWorkspaceRoutes(
+      makeRequest("Manager brand"),
+      { DB: env.DB },
+      url,
+      manager,
+      { requestId: id("manager-create") },
+    );
+    expect(managerCreated.status).toBe(201);
+
+    const listed = await listInventoryEntity(env.DB, "brands", url);
+    expect(listed.items.some((item) => item.name === "Employee brand")).toBe(true);
+    expect(listed.items.some((item) => item.name === "Manager brand")).toBe(true);
+    expect(listed.items.some((item) => item.name === "Invalid role brand")).toBe(false);
   });
 });
