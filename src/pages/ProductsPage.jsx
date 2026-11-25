@@ -112,7 +112,7 @@ export default function ProductsPage({ canManage=false }) {
         <label className="search-box"><span>⌕</span><input value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}} placeholder="جست‌وجو بر اساس نام یا شناسه کالا..."/></label>
         <select value={stock} onChange={e=>{setStock(e.target.value);setPage(0);}} aria-label="فیلتر موجودی"><option value="">همه کالاها</option><option value="in_stock">دارای موجودی</option><option value="out_of_stock">بدون موجودی</option></select>
       </div>
-      {canManage&&<button className="primary-button" onClick={()=>setEditor({product:null})}>＋ افزودن کالا</button>}
+      {canManage&&<button type="button" className="primary-button product-add-button" onClick={()=>setEditor({product:null})}>＋ افزودن کالا</button>}
     </div>
     {notice&&<div className="product-alert success"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
     {loading&&<div className="panel state-box"><span className="spin">◌</span><p>در حال دریافت کالاها از D1...</p></div>}
