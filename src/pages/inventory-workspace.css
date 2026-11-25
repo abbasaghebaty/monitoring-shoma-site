@@ -41,3 +41,7 @@
 @media(max-width:1050px){.iw-layout{grid-template-columns:180px minmax(0,1fr)}.iw-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.iw-shell-head{padding:13px;align-items:flex-start}.iw-shell-head h2{font-size:15px}.iw-refresh{padding:8px}.iw-layout{grid-template-columns:minmax(0,1fr);gap:10px}.iw-subnav{position:static;max-height:none;display:flex;gap:7px;overflow-x:auto;padding:8px}.iw-subnav-group{flex:0 0 auto;display:flex;flex-direction:row;align-items:center;margin:0;border-left:1px solid #2a3b51;padding-left:7px}.iw-subnav-group>span{display:none}.iw-subnav button{width:auto;white-space:nowrap;padding:9px 10px}.iw-subnav button i{display:none}.iw-main{padding:13px}.iw-module-grid{grid-template-columns:1fr}.iw-intro{align-items:flex-start;flex-wrap:wrap}.iw-intro h2{font-size:16px}}
 @media(max-width:480px){.iw-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.iw-metric{padding:11px}.iw-metric strong{font-size:16px}.iw-metric small{font-size:7px}.iw-feature-grid{grid-template-columns:1fr}.iw-module-card{grid-template-columns:32px minmax(0,1fr) auto}.iw-module-arrow{display:none}.iw-status{font-size:7px;padding:4px 6px}.iw-shell-head p{max-width:240px}}
+
+/* Keep the legacy global empty-state panel out of the new workspace view. */
+.content:has(.inventory-workspace) > .state-box{display:none}
+.content:has(.inventory-workspace) > .page-title p{display:none}
