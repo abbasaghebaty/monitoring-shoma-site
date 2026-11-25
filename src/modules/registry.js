@@ -17,4 +17,16 @@ export const MODULES = [
   { id: "users", title: "کاربران و دسترسی‌ها", group: "مدیریت", status: "planned" },
   { id: "audit-log", title: "تاریخچه فعالیت‌ها", group: "مدیریت", status: "planned" },
   { id: "settings", title: "تنظیمات", group: "سیستم", status: "planned" },
+
+  { id: "inventory-workspace", title: "مدیریت انبار پیشرفته", group: "کالا و انبار", status: "ui" },
+  { id: "brands", title: "برندها", group: "کالا و انبار", status: "scaffold" },
+  { id: "warehouses", title: "انبارها", group: "کالا و انبار", status: "scaffold" },
+  { id: "locations", title: "موقعیت‌های انبار", group: "کالا و انبار", status: "scaffold" },
+  { id: "adjustments", title: "اصلاح موجودی", group: "کالا و انبار", status: "scaffold" },
+  { id: "transfers", title: "انتقال بین انبارها", group: "کالا و انبار", status: "scaffold" },
+  { id: "receiving", title: "دریافت کالا", group: "تأمین", status: "scaffold" },
+  { id: "reorder", title: "پیشنهاد سفارش مجدد", group: "تأمین", status: "scaffold" },
+  { id: "stock-counts", title: "انبارگردانی", group: "کالا و انبار", status: "scaffold" },
+  { id: "calendar", title: "تقویم عملیات", group: "تحلیل", status: "scaffold" },
+  { id: "analytics", title: "تحلیل انبار", group: "تحلیل", status: "scaffold" },
 ];

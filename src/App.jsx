@@ -3,6 +3,7 @@ import { LayoutDashboard, Package, ShoppingCart, Warehouse, Users, Wallet, Chart
 import { api } from "./lib/api/endpoints";
 import { setAccessToken, clearAccessToken } from "./lib/api/client";
 import ProductsPage from "./pages/ProductsPage";
+import InventoryWorkspacePage from "./pages/InventoryWorkspacePage";
 import { getInitialPage, getVisibleNavigation, isKnownRole } from "./modules/access";
 
 const NAV = [
@@ -12,6 +13,7 @@ const NAV = [
   ["ورود و خروج", "attendance", Clock3], ["گزارش فروش", "reports", ChartNoAxesCombined],
 ];
 const MONEY = new Intl.NumberFormat("fa-IR");
+NAV.push(["مدیریت انبار پیشرفته", "inventory-workspace", Boxes]);
 const number = (value) => MONEY.format(Number(value || 0));
 const money = (value) => number(value) + " تومان";
 const date = (value) => value ? new Date(value).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -154,6 +156,7 @@ export default function App() {
         {active!=="dashboard" && active!=="reports" && active!=="products" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
         {active!=="products" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
         {active==="products" && <ProductsPage canManage={user.role==="owner" || user.role==="manager"}/> }
+        {active==="inventory-workspace" && <InventoryWorkspacePage onNavigate={setActive}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
         {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
         {!loading&&!error&&active==="reports"&&reportData&&<><div className="metrics-grid compact"><div className="metric"><div className="metric-top">تعداد فروش</div><strong>{number(reportData.totals?.sale_count)}</strong></div><div className="metric"><div className="metric-top">مبلغ کل</div><strong>{money(reportData.totals?.total_amount)}</strong></div><div className="metric"><div className="metric-top">پرداخت‌شده</div><strong>{money(reportData.totals?.paid_amount)}</strong></div><div className="metric"><div className="metric-top">مانده</div><strong>{money(reportData.totals?.balance_amount)}</strong></div></div><Table columns={[{key:"sale_date",label:"تاریخ"},{key:"sale_count",label:"تعداد فروش",render:v=>number(v)},{key:"total_amount",label:"مبلغ کل",render:v=>money(v)}]} rows={reportData.daily||[]}/></>}

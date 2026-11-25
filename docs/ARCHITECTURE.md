@@ -40,3 +40,14 @@
 - تست‌های Repository با SQLite in-memory از Migrationهای واقعی مخزن اجرا می‌شوند؛ تست Workers Vitest نیز همان فایل‌ها را روی D1 محلی Miniflare اجرا می‌کند. این تست‌ها Remote D1 یا Production را اثبات نمی‌کنند.
 
 > محدودیت تست: تست‌ها از Migrationهای واقعی مخزن استفاده می‌کنند و fixture دستی حذف شده است. برابری این Migrationها با DDL فعلی D1 میزبانی‌شده هنوز نیازمند تطبیق read-only در Cloudflare Dashboard است.
+
+
+## فضای مدیریت انبار افزایشی
+
+- ورودی اصلی فضای مدیریت انبار در منوی `src/App.jsx` اضافه شده و با کنترل نقش فعلی هماهنگ است.
+- `src/pages/InventoryWorkspacePage.jsx` پوسته و صفحات داخلی را نمایش می‌دهد.
+- `src/modules/inventory-workspace/catalog.js` کاتالوگ ماژول‌ها، گروه‌ها و وضعیت اتصال را نگه می‌دارد.
+- `src/modules/inventory-workspace/model.js` توابع قالب‌بندی و گروه‌بندی مستقل از UI را نگه می‌دارد.
+- `src/pages/inventory-workspace.css` استایل‌های واکنش‌گرا و scoped این فضا را نگه می‌دارد.
+- خلاصه داشبورد و موجودی فقط از APIهای موجود خوانده می‌شوند؛ سایر صفحات تا زمان وجود قرارداد API و schema معتبر، اسکلت رابط هستند.
+- این توسعه هیچ Migration، endpoint یا query نوشتنی به Worker اضافه نمی‌کند و صفحات قبلی را حذف یا جایگزین نمی‌کند.
