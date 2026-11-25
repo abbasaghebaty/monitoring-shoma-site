@@ -16,7 +16,7 @@
 ## قرارداد D1
 
 Schema canonical از Migrationهای versioned ساخته می‌شود:
-- `products`: شناسه متنی، نام، واحد، package_quantity، weight، weight_unit، description
+- `products`: شناسه متنی، مشخصات پایه، barcode، category_id، brand_id، min_stock و is_active
 - `product_prices`: purchase_price، sell_price، consumer_price، market_price
 - `inventory`: quantity و updated_at
 
@@ -24,17 +24,20 @@ Schema canonical از Migrationهای versioned ساخته می‌شود:
 
 در ویرایش، فقط ستون‌هایی که واقعاً تغییر کرده‌اند نوشته می‌شوند. ابتدا Snapshot کامل کالا و قیمت‌ها در شرط CAS بررسی می‌شود. Audit insert نقش guard را دارد؛ شکست شرط باعث نقض NOT NULL و شکست batch می‌شود. هر UPDATE نیز guard مجزای صفرردیفی دارد. تعارض واقعی با HTTP 409 برمی‌گردد.
 
-## عمداً غیرفعال
+## اطلاعات تکمیلی متصل‌شده در فاز دوم
 
-موارد زیر در schema تأییدشده وجود ندارند:
-- barcode
-- category_id یا جدول دسته‌بندی
-- is_active / deleted_at
-- min_stock
-- جدول گردش موجودی یا اسناد خرید
-- جدول audit log در schema پایهٔ مستندشده وجود نداشت؛ Migration افزایشی آن در همین شاخه تعریف شده است
+Migration افزایشی 0002 ستون‌های `barcode`، `category_id`، `brand_id`، `min_stock` و `is_active` را به کالا اضافه می‌کند. فرم و API کالا این فیلدها را می‌خوانند و می‌نویسند.
 
-بنابراین حذف/غیرفعال‌سازی، بارکد، دسته‌بندی، حداقل موجودی و تغییر موجودی از UI/API فعال نیستند. افزودن آن‌ها به مدل نیازمند پیشنهاد schema حداقلی، بررسی مراجع و تأیید جداگانه است.
+- بارکد خالی اختیاری است؛ بارکد غیرخالی پس از trim و بدون حساسیت به بزرگی حروف یکتا است.
+- دسته‌بندی و برند فقط از فهرست رکوردهای فعال قابل انتخاب‌اند و Worker اعتبار مرجع را دوباره بررسی می‌کند.
+- حداقل موجودی عدد صحیح غیرمنفی است.
+- غیرفعال‌کردن کالا، رکورد را حذف نمی‌کند و سوابق فروش/موجودی را دست‌نخورده می‌گذارد.
+- موجودی واقعی و تغییرات آن همچنان فقط از مسیرهای موجودی مجاز آینده انجام می‌شوند؛ این فرم quantity را تغییر نمی‌دهد.
+- هر تغییر metadata همراه با تغییرات قیمت/مشخصات در Audit و کنترل هم‌زمانی محصول ثبت می‌شود.
+
+## همچنان غیرفعال
+
+جدول گردش موجودی، چندانباره‌سازی عملیاتی، خرید، دریافت، انتقال و اصلاح موجودی هنوز فعال نیستند.
 
 ## Audit و آمادگی Production
 
@@ -48,7 +51,7 @@ Migrationها در SQLite in-memory و D1 محلی Miniflare از فایل‌ه�
 
 - `GET /api/v1/products?q=&stock=&limit=&offset=`
 - `POST /api/v1/products`
-- `PATCH /api/v1/products/:productId`
+- `PATCH /api/v1/products/:productId` (مشخصات، قیمت و metadata کالا)
 
 هر سه مسیر به نشست معتبر نیاز دارند. عملیات نوشتن فقط برای `owner` و `manager` مجاز است.
 

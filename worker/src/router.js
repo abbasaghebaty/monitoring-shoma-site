@@ -3,6 +3,7 @@ import { authRoutes } from "./routes/auth.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { resourceRoutes } from "./routes/resources.js";
 import { productWriteRoutes } from "./routes/products.js";
+import { inventoryWorkspaceRoutes } from "./routes/inventory-workspace.js";
 import { requireSession } from "./middleware/auth.js";
 
 export async function router(request, env, context = null) {
@@ -21,6 +22,9 @@ export async function router(request, env, context = null) {
 
   const productWrite = await productWriteRoutes(request, env, url, access.user, context);
   if (productWrite) return productWrite;
+
+  const inventoryWorkspace = await inventoryWorkspaceRoutes(request, env, url, access.user, context);
+  if (inventoryWorkspace) return inventoryWorkspace;
 
   if (request.method !== "GET") return json({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "این مسیر فقط خواندنی است." } }, 405);
   const dashboard = await dashboardRoutes(request, env, url, access.user);

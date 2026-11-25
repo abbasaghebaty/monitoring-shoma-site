@@ -14,6 +14,8 @@ import { listDebts } from "../worker/src/repositories/debts.js";
 import { listCustomers } from "../worker/src/repositories/customers.js";
 import { listAttendance } from "../worker/src/repositories/attendance.js";
 import { dashboardRoutes } from "../worker/src/routes/dashboard.js";
+import { createInventoryEntity, updateInventoryEntity, listInventoryEntity } from "../worker/src/repositories/inventory-workspace.js";
+import { inventoryWorkspaceRoutes } from "../worker/src/routes/inventory-workspace.js";
 
 const actorTelegramId = 7001001;
 const manager = { telegram_id: actorTelegramId, role: "manager" };
@@ -68,6 +70,7 @@ beforeAll(async () => {
   // Baseline is intentionally safe to re-run; this catches accidental non-idempotent DDL.
   await applyStatements(env.TEST_BASELINE_SQL);
   await applyStatements(env.TEST_AUDIT_MIGRATION_SQL);
+  await applyStatements(env.TEST_INVENTORY_MIGRATION_SQL);
   await env.DB.prepare(
     "INSERT INTO users (telegram_id, full_name, role, is_active) VALUES (?, ?, 'manager', 1)"
   ).bind(actorTelegramId, "D1 Integration Manager").run();
@@ -116,8 +119,8 @@ describe("Cloudflare D1 runtime product integrity", () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
     ).all();
     expect(tables.results.map((row) => row.name)).toEqual([
-      "attendance", "customers", "debts", "inventory", "product_audit_log",
-      "product_prices", "products", "sales", "users",
+      "attendance", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
+      "product_brands", "product_categories", "product_prices", "products", "sales", "users", "warehouse_locations", "warehouses",
     ]);
 
     // Verify real FK enforcement rather than relying only on PRAGMA metadata.
@@ -294,5 +297,38 @@ describe("Cloudflare D1 runtime product integrity", () => {
     ]);
     expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
     expect(await auditCount(productId)).toBe(2);
+  });
+});
+
+describe("inventory workspace master-data D1 integration", () => {
+  it("creates categories, brands, warehouses and locations with atomic audit rows", async () => {
+    const category = await createInventoryEntity(env.DB,"categories",{name:"Home care",description:"Cleaning products"},actorTelegramId,id("cat-create"));
+    const brand = await createInventoryEntity(env.DB,"brands",{name:"Shoma brand"},actorTelegramId,id("brand-create"));
+    const warehouse = await createInventoryEntity(env.DB,"warehouses",{name:"Main",code:id("WH")},actorTelegramId,id("wh-create"));
+    const location = await createInventoryEntity(env.DB,"locations",{warehouse_id:warehouse.id,code:"A-01",name:"Shelf A",zone:"A",shelf:"01",capacity:40},actorTelegramId,id("loc-create"));
+    expect(category.name).toBe("Home care");
+    expect(brand.name).toBe("Shoma brand");
+    expect(location.warehouse_name).toBe("Main");
+    const audit = await env.DB.prepare("SELECT COUNT(*) count FROM inventory_workspace_audit").first();
+    expect(Number(audit.count)).toBe(4);
+  });
+  it("rejects a stale master-data update and keeps its audit trail atomic", async () => {
+    const brand = await createInventoryEntity(env.DB,"brands",{name:"Concurrency brand"},actorTelegramId,id("brand-race-create"));
+    const stale = brand.updated_at;
+    const updated = await updateInventoryEntity(env.DB,"brands",brand.id,{name:"Concurrency brand v2",updated_at:stale},actorTelegramId,id("brand-race-update"));
+    expect(updated.name).toBe("Concurrency brand v2");
+    await expect(updateInventoryEntity(env.DB,"brands",brand.id,{name:"stale overwrite",updated_at:stale},actorTelegramId,id("brand-race-stale"))).rejects.toMatchObject({code:"STALE_ENTITY"});
+    const audit = await env.DB.prepare("SELECT COUNT(*) count FROM inventory_workspace_audit WHERE entity_id=?").bind(brand.id).first();
+    expect(Number(audit.count)).toBe(2);
+  });
+  it("exposes master data only to managers and supports authenticated create", async () => {
+    const url = new URL("https://worker.test/api/v1/inventory-workspace/brands");
+    const req = new Request(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"Route brand"})});
+    const forbidden = await inventoryWorkspaceRoutes(req,{DB:env.DB},url,{telegram_id:actorTelegramId,role:"employee"},{requestId:id("forbidden")});
+    expect(forbidden.status).toBe(403);
+    const created = await inventoryWorkspaceRoutes(req,{DB:env.DB},url,manager,{requestId:id("allowed")});
+    expect(created.status).toBe(201);
+    const listed = await listInventoryEntity(env.DB,"brands",url);
+    expect(listed.items.some(item=>item.name==="Route brand")).toBe(true);
   });
 });

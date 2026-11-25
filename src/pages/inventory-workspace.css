@@ -45,3 +45,11 @@
 /* Keep the legacy global empty-state panel out of the new workspace view. */
 .content:has(.inventory-workspace) > .state-box{display:none}
 .content:has(.inventory-workspace) > .page-title p{display:none}
+
+.iw-master-form{display:flex;flex-direction:column;gap:13px;padding:14px;background:#17263a;border:1px solid #2a3d56;border-radius:10px}
+.iw-master-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.iw-master-fields label{display:flex;flex-direction:column;gap:6px;color:#aebed2;font-size:9px}
+.iw-master-fields input,.iw-master-fields select{width:100%;min-width:0;padding:10px;border:1px solid #354a64;border-radius:7px;background:#101c2b;color:#e1eaf6;font:inherit;font-size:10px}
+.iw-master-actions{display:flex;gap:8px;flex-wrap:wrap}
+.iw-row-edit{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #354a64;border-radius:6px;background:#1b2b40;color:#c5d2e3;font:inherit;font-size:9px;cursor:pointer}
+@media(max-width:520px){.iw-master-fields{grid-template-columns:1fr}}

@@ -38,9 +38,11 @@ export async function productWriteRoutes(request, env, url, user, context = null
       return json({ ok: true, data: { product } }, 201);
     } catch (error) {
       logFailure(context, { errorCode: "PRODUCT_001", stage: "product_create", error, dependency: "D1" });
-      const duplicate = /UNIQUE constraint failed|PRIMARY KEY/i.test(String(error?.message || ""));
+      const message = String(error?.message || "");
+      if (message === "PRODUCT_CATEGORY_INVALID" || message === "PRODUCT_BRAND_INVALID") return failure(422, "PRODUCT_REFERENCE_INVALID", "دسته‌بندی یا برند انتخاب‌شده فعال نیست یا وجود ندارد.");
+      const duplicate = /UNIQUE constraint failed|PRIMARY KEY/i.test(message);
       return failure(duplicate ? 409 : 500, duplicate ? "PRODUCT_002" : "PRODUCT_001",
-        duplicate ? "شناسه این کالا قبلاً ثبت شده است." : "ذخیره کالا انجام نشد. کد پیگیری را به مدیر سامانه اعلام کنید.");
+        duplicate ? "شناسه یا بارکد این کالا قبلاً ثبت شده است." : "ذخیره کالا انجام نشد. کد پیگیری را به مدیر سامانه اعلام کنید.");
     }
   }
 
@@ -61,6 +63,8 @@ export async function productWriteRoutes(request, env, url, user, context = null
       if (error instanceof ProductConflictError) return failure(409, "PRODUCT_CONFLICT", "اطلاعات کالا هم‌زمان تغییر کرده است. صفحه را تازه‌سازی و دوباره تلاش کنید.");
       if (error instanceof ProductPriceRowMissingError) return failure(409, "PRODUCT_PRICE_MISSING", "رکورد قیمت این کالا وجود ندارد؛ ذخیره انجام نشد.");
       if (error instanceof ProductNoChangesError) return failure(422, "PRODUCT_NO_CHANGES", "مقدار جدیدی برای ذخیره وجود ندارد.");
+      if (["PRODUCT_CATEGORY_INVALID","PRODUCT_BRAND_INVALID"].includes(String(error?.message || ""))) return failure(422, "PRODUCT_REFERENCE_INVALID", "دسته‌بندی یا برند انتخاب‌شده فعال نیست یا وجود ندارد.");
+      if (/UNIQUE constraint failed/.test(String(error?.message || ""))) return failure(409, "PRODUCT_002", "شناسه یا بارکد این کالا قبلاً ثبت شده است.");
       logFailure(context, { errorCode: "PRODUCT_001", stage: "product_update", error, dependency: "D1" });
       return failure(500, "PRODUCT_001", "به‌روزرسانی کالا انجام نشد. کد پیگیری را به مدیر سامانه اعلام کنید.");
     }
