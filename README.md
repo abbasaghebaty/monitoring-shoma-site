@@ -11,6 +11,8 @@
 
 GitHub Pages فقط فایل‌های استاتیک را میزبانی می‌کند. مرورگر مستقیماً به D1 وصل نمی‌شود؛ دسترسی به داده‌ها فقط از مسیر Worker انجام خواهد شد.
 
+> **وضعیت دیتابیس زنده:** همه Migrationهای مخزن روی دیتابیس Production اجرا نشده‌اند. Worker و API باید فقط بر اساس snapshot تأییدشده در [DATABASE_REFERENCE.md](docs/DATABASE_REFERENCE.md) کار کنند؛ جدول Audit و فضای چندانبارِ migrationهای 0001/0002 در دیتابیس زنده فرض نمی‌شوند.
+
 ## تصمیم قطعی درباره دیتابیس
 
 **Schema مرجع پروژه versioned و migration-driven است.** worker/migrations/0000_baseline.sql ساخت دیتابیس تازه را تعریف می‌کند و 0001_product_audit_log.sql لایه Audit را اضافه می‌کند. Baseline از CREATE IF NOT EXISTS استفاده می‌کند تا در دیتابیس موجود، جدول‌ها/ردیف‌ها را حذف یا بازنویسی نکند؛ اما تعریف ستون‌ها و Triggerهای موجود را نیز اصلاح نمی‌کند. قبل از پذیرش یک دیتابیس موجود، تطبیق read-only آن با قرارداد canonical الزامی است. هیچ Migrationای در این PR روی Production اجرا نشده است. جزئیات در D1_COMPATIBILITY.md ثبت شده‌اند.

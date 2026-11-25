@@ -11,7 +11,6 @@ import {
   getWorkspaceStatus,
   groupWorkspaceModules,
 } from "../modules/inventory-workspace/model";
-import MasterDataView from "../modules/inventory-workspace/MasterDataView";
 import "./inventory-workspace.css";
 
 function StatusPill({ status }) {
@@ -189,7 +188,7 @@ export default function InventoryWorkspacePage({ onNavigate = () => {} }) {
             : <Overview summary={summary} onSelect={setActive} onNavigate={onNavigate}/>)}
         {active === "inventory" && <InventoryView items={inventory} loading={loadingInventory} error={inventoryError} onRetry={() => setReload((value) => value + 1)}/>}
         {active === "products" && <ProductsView onNavigate={onNavigate}/>}
-        {["categories", "brands", "warehouses", "locations"].includes(active) && <MasterDataView entity={active} onChanged={() => setReload((value) => value + 1)} />}
+        {["categories", "brands", "warehouses", "locations"].includes(active) && <ScaffoldView module={activeModule} />}
         {!["overview", "inventory", "products", "categories", "brands", "warehouses", "locations"].includes(active) && <ScaffoldView module={activeModule}/>}
       </main>
     </div>
