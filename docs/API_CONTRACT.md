@@ -84,18 +84,4 @@ API خرید، تأمین‌کننده، هزینه، invoice چندقلمی، l
 - محصولات از products و join با product_prices و inventory خوانده می‌شوند.
 - فروش از sales و بدهی از debts.sale_id خوانده می‌شود.
 - attendance فقط SELECT است و هیچ write endpoint برای آن وجود ندارد.
-- زنجیرهٔ schema نسخه‌دار در worker/migrations شامل baseline و audit است؛ در این PR هیچ migration یا query نوشتنی روی Production D1 اجرا نشده است.
-
-## فضای مدیریت انبار — داده‌های پایه (فاز اول)
-
-تمام مسیرهای زیر به نشست معتبر نیاز دارند و فقط برای owner/manager قابل استفاده‌اند:
-- GET/POST /api/v1/inventory-workspace/categories
-- PATCH /api/v1/inventory-workspace/categories/:id
-- GET/POST /api/v1/inventory-workspace/brands
-- PATCH /api/v1/inventory-workspace/brands/:id
-- GET/POST /api/v1/inventory-workspace/warehouses
-- PATCH /api/v1/inventory-workspace/warehouses/:id
-- GET/POST /api/v1/inventory-workspace/locations
-- PATCH /api/v1/inventory-workspace/locations/:id
-
-GET پاسخ صفحه‌بندی‌شده با items و pagination می‌دهد. POST رکورد و Audit CREATE را در یک D1 batch ثبت می‌کند. PATCH باید updated_at دریافتی از رکورد را ارسال کند؛ تغییر stale با HTTP 409 رد می‌شود. حذف فیزیکی ارائه نشده است.
+- زنجیرهٔ schema نسخه‌دار در worker/migrations شامل baseline، audit و migration افزایشی فضای انبار است؛ هیچ migration یا query نوشتنی روی Production D1 اجرا نشده است.
