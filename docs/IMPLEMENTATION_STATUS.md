@@ -15,7 +15,7 @@
 - محصولات، قیمت‌ها و موجودی از products و product_prices و inventory خوانده می‌شوند.
 - فروش، بدهی، مشتری و حضور و غیاب با ستون‌های واقعی schema خوانده می‌شوند.
 - داشبورد و گزارش فروش بازه‌ای به queryهای D1 متصل شده‌اند.
-- APIهای خواندنی موجود حفظ شده‌اند؛ برای محصولات فقط POST ایجاد و PATCH ویرایش مشخصات/قیمت با مجوز owner/manager اضافه شده است.
+- APIهای خواندنی موجود حفظ شده‌اند؛ POST ایجاد و PATCH ویرایش مشخصات/قیمت محصولات برای تمام نقش‌های معتبر پس از ورود در دسترس است.
 - ویرایش کالا فقط ستون‌های واقعاً تغییرکرده را با optimistic concurrency control می‌نویسد؛ Snapshot stale با 409 رد می‌شود.
 - زنجیرهٔ Migration شامل baseline کامل و Audit است؛ هر دو فایل در SQLite و D1 محلی از دیتابیس خالی اجرا می‌شوند. Production اجرا نشده است.
 - مسیر موقت schema inspection از Router عمومی خارج شده است.
@@ -60,7 +60,7 @@
 - [ ] OTP برای کاربر فعال ارسال شود
 - [ ] کاربر غیرفعال یا ناشناخته نتواند وارد شود
 - [ ] درخواست بدون نشست 401 و نقش نامجاز 403 بگیرد
-- [ ] تمام نقش‌های معتبر بتوانند منابع خواندنی پنل را ببینند و عملیات نوشتنی برای employee همچنان رد شود
+- [x] تمام نقش‌های معتبر بتوانند منابع خواندنی و عملیات نوشتنی پنل را انجام دهند؛ نقش نامعتبر رد شود
 - [ ] داده‌های محصولات، فروش، بدهی، مشتری و attendance با D1 تطبیق داده شوند
 - [ ] هیچ جدول یا سابقه Production D1 تغییر نکرده باشد
 
@@ -97,7 +97,7 @@ Commit در شاخه توسعه به‌تنهایی به معنی Deploy نیس�
 
 ## Inventory workspace integration — phase 1
 - Added additive migration 0002 for categories, brands, warehouses, warehouse locations, product metadata fields and append-only workspace audit.
-- Added authenticated Worker list/create/update routes for the four master-data entities. Writes are restricted to owner/manager and use updated_at compare-and-swap plus transactional audit.
+- Added authenticated Worker list/create/update routes for the four master-data entities. All valid signed-in roles can use them; writes use updated_at compare-and-swap plus transactional audit.
 - Added frontend API methods and CRUD form/table view for those four sections.
 - Multi-warehouse stock, movement ledger, purchase/receiving and adjustments remain intentionally inactive until a stock ledger is designed to preserve existing sales triggers.
 - Migration 0002 has not been applied to hosted D1; CI/local migration tests are the required validation boundary.
