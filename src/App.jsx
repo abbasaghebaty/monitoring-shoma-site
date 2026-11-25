@@ -11,9 +11,10 @@ const NAV = [
   ["انبار و موجودی", "inventory", Warehouse], ["فروش", "sales", ShoppingCart],
   ["بدهی‌ها", "debts", Wallet], ["مشتریان", "customers", Users],
   ["ورود و خروج", "attendance", Clock3], ["گزارش فروش", "reports", ChartNoAxesCombined],
-  ["مدیریت انبار پیشرفته", "inventory-workspace", Boxes],
 ];
-const MONEY = new Intl.NumberFormat("fa-IR");
+const MONEY
+NAV.push(["مدیریت انبار پیشرفته", "inventory-workspace", Boxes]);
+ = new Intl.NumberFormat("fa-IR");
 const number = (value) => MONEY.format(Number(value || 0));
 const money = (value) => number(value) + " تومان";
 const date = (value) => value ? new Date(value).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -151,10 +152,10 @@ export default function App() {
       <div className="sidebar-bottom"><div className="user-card"><div className="user-avatar">{(user.fullName||"؟").slice(0,1)}</div><div><b>{user.fullName}</b><small>{user.role==="owner"?"مالک":user.role==="manager"?"مدیر":"کارمند"}</small></div><button className="icon-button" title="خروج" onClick={logout}><LogOut size={17}/></button></div></div>
     </aside>
     <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={()=>setMobile(!mobile)}><Menu/></button><div className="breadcrumb">شما <ChevronLeft size={14}/><b>{pageTitle}</b></div><div className="top-actions"><span className="api-indicator">اتصال امن فعال</span><button className="icon-button" onClick={()=>setRefresh(v=>v+1)} title="به‌روزرسانی"><RefreshCw size={17}/></button></div></header>
-      <div className="content"><div className="page-title"><div><span className="eyebrow">مدیریت فروشگاه شما</span><h1>{pageTitle}</h1><p>{active==="inventory-workspace"?"ماژول‌های متصل و آماده توسعه":"اطلاعات زنده از دیتابیس مرکزی فروشگاه"}</p></div></div>
+      <div className="content"><div className="page-title"><div><span className="eyebrow">مدیریت فروشگاه شما</span><h1>{pageTitle}</h1><p>اطلاعات زنده از دیتابیس مرکزی فروشگاه</p></div></div>
         {active==="reports" && <div className="toolbar date-toolbar"><label>از <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>تا <input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label></div>}
         {active!=="dashboard" && active!=="reports" && active!=="products" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
-        {active!=="products" && active!=="inventory-workspace" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
+        {active!=="products" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
         {active==="products" && <ProductsPage canManage={user.role==="owner" || user.role==="manager"}/> }
         {active==="inventory-workspace" && <InventoryWorkspacePage onNavigate={setActive}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
