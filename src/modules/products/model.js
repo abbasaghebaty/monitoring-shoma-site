@@ -1,8 +1,8 @@
-// Product fields intentionally mirror the confirmed D1 schema.
-// Barcode, category, active status and min_stock do not exist in the live schema.
+// Product fields mirror the additive D1 product metadata migration (0002).
 export const PRODUCT_FIELDS = [
   "product_id", "name", "unit", "package_quantity", "weight", "weight_unit",
-  "description", "purchase_price", "sell_price", "consumer_price", "market_price",
+  "description", "barcode", "category_id", "brand_id", "min_stock", "is_active",
+  "purchase_price", "sell_price", "consumer_price", "market_price",
 ];
 
 export function validateProductDraft(draft, { creating = false } = {}) {
@@ -23,7 +23,7 @@ export function validateProductDraft(draft, { creating = false } = {}) {
     if (!name) errors.name = "نام کالا الزامی است.";
     else if (name.length > 160) errors.name = "نام کالا بیش از حد طولانی است.";
   }
-  for (const [field, max] of [["unit",30],["weight_unit",20],["description",2000]]) {
+  for (const [field, max] of [["unit",30],["weight_unit",20],["description",2000],["barcode",100]]) {
     if (!Object.prototype.hasOwnProperty.call(draft || {}, field)) continue;
     const value = draft[field] == null ? "" : String(draft[field]).trim();
     if (field === "unit" && !value) errors.unit = "واحد کالا نمی‌تواند خالی باشد.";
@@ -37,6 +37,13 @@ export function validateProductDraft(draft, { creating = false } = {}) {
     const value = draft.weight;
     if (value !== null && value !== "" && (!Number.isFinite(Number(value)) || Number(value) <= 0)) errors.weight = "وزن باید عدد مثبت یا خالی باشد.";
   }
+  for (const field of ["category_id","brand_id"]) {
+    if (!Object.prototype.hasOwnProperty.call(draft || {}, field)) continue;
+    const value = draft[field];
+    if (value !== null && value !== "" && (typeof value !== "string" || value.trim().length > 80)) errors[field] = "مقدار مرجع انتخاب‌شده معتبر نیست.";
+  }
+  if (Object.prototype.hasOwnProperty.call(draft || {}, "min_stock") && (!Number.isSafeInteger(Number(draft.min_stock)) || Number(draft.min_stock) < 0)) errors.min_stock = "حداقل موجودی باید عدد صحیح و غیرمنفی باشد.";
+  if (Object.prototype.hasOwnProperty.call(draft || {}, "is_active") && ![0,1,false,true].includes(draft.is_active)) errors.is_active = "وضعیت کالا معتبر نیست.";
   for (const field of ["purchase_price","sell_price","consumer_price","market_price"]) {
     if (!Object.prototype.hasOwnProperty.call(draft || {}, field)) continue;
     const value = draft[field];

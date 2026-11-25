@@ -21,7 +21,9 @@ const user = { telegram_id: 1001, role: "manager" };
 test("product draft validation follows the schema and rejects unsupported fields", () => {
   assert.deepEqual(validateProductDraft({ product_id: "P-100", name: "مایع شوینده", unit: "عدد", purchase_price: 120, sell_price: 150 }, { creating: true }), {});
   assert.ok(validateProductDraft({ product_id: "P-1", name: "", purchase_price: -1 }, { creating: true }).name);
-  assert.ok(validateProductDraft({ product_id: "P-1", name: "کالا", barcode: "123" }, { creating: true }).barcode);
+  assert.deepEqual(validateProductDraft({ product_id: "P-1", name: "کالا", barcode: "123", min_stock: 5, is_active: 0 }, { creating: true }), {});
+  assert.ok(validateProductDraft({ product_id: "P-1", name: "کالا", min_stock: -1 }, { creating: true }).min_stock);
+  assert.ok(validateProductDraft({ product_id: "P-1", name: "کالا", is_active: 2 }, { creating: true }).is_active);
   assert.ok(validateProductDraft({ product_id: "P-1", name: "کالا" }).product_id);
 });
 
@@ -29,10 +31,14 @@ test("SQLite trigger initializes prices and inventory; product create and audit 
   const { DB, sqlite, close } = setup(); t.after(close);
   const product = await createProduct(DB, {
     product_id: "P-100", name: "مایع شوینده", unit: "عدد", package_quantity: 2, weight: 1.5,
-    weight_unit: "لیتر", description: "توضیح", purchase_price: 120, sell_price: 150, consumer_price: 160, market_price: 155,
+    weight_unit: "لیتر", description: "توضیح", barcode: "62600010001", min_stock: 4, is_active: 0,
+    purchase_price: 120, sell_price: 150, consumer_price: 160, market_price: 155,
   }, auditContext("create-100"));
   assert.equal(product.product_id, "P-100");
   assert.equal(product.sell_price, 150);
+  assert.equal(product.barcode, "62600010001");
+  assert.equal(product.min_stock, 4);
+  assert.equal(product.is_active, 0);
   assert.equal(sqlite.prepare("SELECT quantity FROM inventory WHERE product_id=?").get("P-100").quantity, 0);
   assert.equal(sqlite.prepare("SELECT purchase_price FROM product_prices WHERE product_id=?").get("P-100").purchase_price, 120);
   const audit = sqlite.prepare("SELECT * FROM product_audit_log WHERE request_id=?").get("create-100");
@@ -40,6 +46,8 @@ test("SQLite trigger initializes prices and inventory; product create and audit 
   assert.equal(audit.operation, "CREATE");
   assert.equal(audit.previous_values, null);
   assert.equal(JSON.parse(audit.new_values).sell_price, 150);
+  assert.equal(JSON.parse(audit.new_values).barcode, "62600010001");
+  assert.equal(JSON.parse(audit.new_values).min_stock, 4);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM product_audit_log").get().n, 1);
 });
 
@@ -53,6 +61,35 @@ test("duplicate product IDs return 409 without a second audit event", async (t) 
   const response = await productWriteRoutes(request, { DB }, new URL(request.url), user, { requestId: "duplicate-second" });
   assert.equal(response.status, 409);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM product_audit_log").get().n, 1);
+});
+
+test("product metadata updates are audited and preserve unrelated fields", async (t) => {
+  const { DB, sqlite, close } = setup(); t.after(close);
+  const { createInventoryEntity } = await import("../src/repositories/inventory-workspace.js");
+  const category = await createInventoryEntity(DB,"categories",{name:"Laundry"},1001,"category-for-product");
+  const brand = await createInventoryEntity(DB,"brands",{name:"Shoma"},1001,"brand-for-product");
+  await createProduct(DB,{product_id:"P-META",name:"Detergent",sell_price:70},auditContext("meta-create"));
+  const updated = await updateProduct(DB,"P-META",{barcode:"62600020002",category_id:category.id,brand_id:brand.id,min_stock:8,is_active:0},auditContext("meta-update"));
+  assert.equal(updated.category_id,category.id); assert.equal(updated.brand_id,brand.id);
+  assert.equal(updated.category_name,"Laundry"); assert.equal(updated.brand_name,"Shoma");
+  assert.equal(updated.min_stock,8); assert.equal(updated.is_active,0); assert.equal(updated.sell_price,70);
+  const audit=sqlite.prepare("SELECT previous_values,new_values FROM product_audit_log WHERE request_id=?").get("meta-update");
+  assert.deepEqual(JSON.parse(audit.previous_values),{barcode:null,category_id:null,brand_id:null,min_stock:0,is_active:1});
+  assert.deepEqual(JSON.parse(audit.new_values),{barcode:"62600020002",category_id:category.id,brand_id:brand.id,min_stock:8,is_active:0});
+});
+
+test("duplicate barcode is rejected by the database without overwriting another product", async (t) => {
+  const { DB, sqlite, close } = setup(); t.after(close);
+  await createProduct(DB,{product_id:"P-BAR-1",name:"One",barcode:"62600030003"},auditContext("barcode-one"));
+  await assert.rejects(createProduct(DB,{product_id:"P-BAR-2",name:"Two",barcode:" 62600030003 "},auditContext("barcode-two")));
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE barcode IS NOT NULL").get().n,1);
+});
+
+test("inactive or unknown category and brand references are rejected", async (t) => {
+  const { DB, sqlite, close } = setup(); t.after(close);
+  await assert.rejects(createProduct(DB,{product_id:"P-BAD-CAT",name:"Bad",category_id:"missing"},auditContext("bad-category")),/PRODUCT_CATEGORY_INVALID/);
+  await assert.rejects(createProduct(DB,{product_id:"P-BAD-BRAND",name:"Bad",brand_id:"missing"},auditContext("bad-brand")),/PRODUCT_BRAND_INVALID/);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM products").get().n,0);
 });
 
 test("updating one price preserves unrelated prices and records only changed values", async (t) => {

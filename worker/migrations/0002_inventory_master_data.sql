@@ -28,3 +28,4 @@ END;
 CREATE INDEX idx_products_category ON products(category_id);
 CREATE INDEX idx_products_brand ON products(brand_id);
 CREATE INDEX idx_products_barcode ON products(barcode);
+CREATE UNIQUE INDEX idx_products_barcode_unique ON products(lower(trim(barcode))) WHERE barcode IS NOT NULL AND trim(barcode)<>'';
