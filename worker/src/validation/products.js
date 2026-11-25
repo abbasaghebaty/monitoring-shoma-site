@@ -1,8 +1,8 @@
-const TEXT_LIMITS = { name: 160, unit: 30, weight_unit: 20, description: 2000 };
+const TEXT_LIMITS = { name: 160, unit: 30, weight_unit: 20, description: 2000, barcode: 100 };
 
 export function validateProductDraft(input, { creating = false } = {}) {
   const errors = {};
-  const allowed = new Set(["product_id", "name", "unit", "package_quantity", "weight", "weight_unit", "description", "purchase_price", "sell_price", "consumer_price", "market_price"]);
+  const allowed = new Set(["product_id", "name", "unit", "package_quantity", "weight", "weight_unit", "description", "barcode", "category_id", "brand_id", "min_stock", "is_active", "purchase_price", "sell_price", "consumer_price", "market_price"]);
   for (const key of Object.keys(input || {})) {
     if (!allowed.has(key)) errors[key] = "این فیلد در ساختار فعلی کالا پشتیبانی نمی‌شود.";
   }
@@ -18,7 +18,7 @@ export function validateProductDraft(input, { creating = false } = {}) {
     if (!name) errors.name = "نام کالا الزامی است.";
     else if (name.length > TEXT_LIMITS.name) errors.name = "نام کالا بیش از حد طولانی است.";
   }
-  for (const field of ["unit", "weight_unit", "description"]) {
+  for (const field of ["unit", "weight_unit", "description", "barcode"]) {
     if (!Object.prototype.hasOwnProperty.call(input || {}, field)) continue;
     const value = input[field] == null ? "" : String(input[field]).trim();
     if (field === "unit" && !value) errors.unit = "واحد کالا نمی‌تواند خالی باشد.";
@@ -32,6 +32,16 @@ export function validateProductDraft(input, { creating = false } = {}) {
     const value = input.weight;
     if (value !== null && value !== "" && (!Number.isFinite(Number(value)) || Number(value) <= 0)) errors.weight = "وزن باید عدد مثبت یا خالی باشد.";
   }
+  for (const field of ["category_id", "brand_id"]) {
+    if (!Object.prototype.hasOwnProperty.call(input || {}, field)) continue;
+    const value = input[field];
+    if (value !== null && value !== "" && (typeof value !== "string" || value.trim().length > 80 || /[\\u0000-\\u001f]/.test(value))) errors[field] = "مقدار مرجع انتخاب‌شده معتبر نیست.";
+  }
+  if (Object.prototype.hasOwnProperty.call(input || {}, "min_stock")) {
+    const value = input.min_stock;
+    if (!Number.isSafeInteger(Number(value)) || Number(value) < 0) errors.min_stock = "حداقل موجودی باید عدد صحیح و غیرمنفی باشد.";
+  }
+  if (Object.prototype.hasOwnProperty.call(input || {}, "is_active") && ![0, 1, false, true].includes(input.is_active)) errors.is_active = "وضعیت کالا معتبر نیست.";
   for (const field of ["purchase_price", "sell_price", "consumer_price", "market_price"]) {
     if (!Object.prototype.hasOwnProperty.call(input || {}, field)) continue;
     const value = input[field];
