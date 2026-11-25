@@ -90,12 +90,12 @@ function InventoryView({ items, loading, error, onRetry }) {
 function ProductsView({ onNavigate }) {
   return <div className="iw-view">
     <div className="iw-intro"><div><span className="iw-eyebrow">PRODUCT CATALOG</span><h2>مدیریت محصولات</h2><p>مدیریت مشخصات و چهار نوع قیمت کالا در صفحه اصلی مدیریت اجناس پیاده‌سازی شده است.</p></div><button className="iw-primary" onClick={() => onNavigate("products")}>باز کردن مدیریت اجناس <ArrowLeft size={16}/></button></div>
-    <ConnectedNotice>صفحه اصلی محصولات به D1 متصل است و ایجاد/ویرایش را با مجوز owner و manager، کنترل هم‌زمانی و ثبت Audit انجام می‌دهد.</ConnectedNotice>
+    <ConnectedNotice>صفحه اصلی محصولات از API نسخه ۱ استفاده می‌کند و فقط ستون‌های موجود در دیتابیس زنده را می‌خواند و می‌نویسد.</ConnectedNotice>
     <div className="iw-feature-grid">
-      {["افزودن کالای جدید","ویرایش مشخصات کالا","مدیریت قیمت خرید و فروش","جست‌وجو و فیلتر موجودی","صفحه‌بندی فهرست کالاها","ثبت رویداد تغییرات در Audit"].map((item) => <div className="iw-feature" key={item}><ShieldCheck size={17}/>{item}</div>)}
+      {["افزودن کالای جدید","ویرایش مشخصات کالا","مدیریت چهار نوع قیمت","جست‌وجو و فیلتر موجودی","صفحه‌بندی فهرست کالاها","اتصال مستقیم به D1 از طریق API"].map((item) => <div className="iw-feature" key={item}><ShieldCheck size={17}/>{item}</div>)}
     </div>
     <ScaffoldNotice/>
-    <p className="iw-footnote">حذف، آرشیو، دسته‌بندی، برند، بارکد و تغییر موجودی در قرارداد فعلی API فعال نیستند؛ برای آن‌ها اینجا عملیات ساختگی اضافه نشده است.</p>
+    <p className="iw-footnote">حذف، دسته‌بندی، برند، بارکد و تغییر موجودی تا اضافه‌شدن ستون‌ها و دفتر گردش معتبر در دیتابیس فعال نیستند.</p>
   </div>;
 }
 

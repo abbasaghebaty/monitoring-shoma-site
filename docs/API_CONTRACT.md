@@ -1,93 +1,56 @@
 # قرارداد API نسخه ۱
 
-## قالب پاسخ
+تمام مسیرها از Worker مستقل پروژه ارائه می‌شوند؛ مرورگر و مصرف‌کننده‌های دیگر مستقیماً به D1 وصل نمی‌شوند.
 
-موفق:
+## قرارداد عمومی
+- پاسخ موفق: \`{ "ok": true, "data": {}, "requestId": "..." }\`
+- پاسخ خطا: \`{ "ok": false, "error": { "code": "...", "message": "..." }, "requestId": "..." }\`
+- تمام مسیرهای خصوصی \`/api/v1/*\` به نشست معتبر نیاز دارند.
+- صفحه‌بندی با limit و offset؛ سقف limit برابر ۱۰۰ است.
+- نقش‌های معتبر owner، manager و employee در پنل سطح دسترسی یکسان دارند.
 
-```json
-{ "ok": true, "data": {}, "requestId": "..." }
-```
+## مسیرها
+| منبع | مسیر | عملیات |
+|---|---|---|
+| سلامت | GET /health | اتصال Worker و D1 |
+| احراز هویت | /api/v1/auth/* | OTP، ورود، خروج و اطلاعات حساب |
+| داشبورد | GET /api/v1/dashboard/summary | آمار و فروش‌های اخیر |
+| کاربران | GET /api/v1/users | فهرست و جست‌وجو |
+| کالا | GET /api/v1/products | فهرست، جست‌وجو و فیلتر موجودی |
+| کالا | GET /api/v1/products/:productId | جزئیات |
+| کالا | POST /api/v1/products | ایجاد |
+| کالا | PATCH /api/v1/products/:productId | ویرایش |
+| قیمت کالا | GET /api/v1/product-prices | فهرست قیمت‌ها؛ فیلتر product_id |
+| موجودی | GET /api/v1/inventory | مشاهده موجودی |
+| فروش | GET /api/v1/sales و GET /api/v1/sales/:id | فهرست و جزئیات |
+| فروش | POST /api/v1/sales | ثبت فروش یک‌قلمی |
+| بدهی | GET /api/v1/debts | فهرست بدهی |
+| مشتری | GET /api/v1/customers | فهرست و جست‌وجو |
+| مشتری | POST /api/v1/customers | ایجاد |
+| مشتری | PATCH /api/v1/customers/:id | ویرایش |
+| حضور | GET /api/v1/attendance | سوابق |
+| حضور | POST /api/v1/attendance/check-in | ثبت ورود حساب جاری |
+| حضور | POST /api/v1/attendance/check-out | ثبت خروج حساب جاری |
+| گزارش | GET /api/v1/reports/sales | گزارش بازه‌ای |
 
-خطا:
+## قرارداد فروش
+POST /api/v1/sales بدنه‌ای شامل product_id، quantity و در صورت نیاز sale_date، sale_time، sale_channel، sell_price، amount_paid، payment_method و customer_name می‌پذیرد. قیمت‌های خرید و مصرف‌کننده از product_prices خوانده و به‌عنوان snapshot ذخیره می‌شوند. جدول فعلی فقط یک محصول در هر ردیف دارد.
 
-```json
-{
-  "ok": false,
-  "error": {
-    "errorCode": "CONFIG_001",
-    "message": "پیام امن برای کاربر",
-    "requestId": "...",
-    "httpStatus": 503
-  },
-  "requestId": "...",
-  "meta": { "requestId": "...", "rayId": "..." }
-}
-```
+**Triggerهای D1 بعد از درج فروش، موجودی را کم و بدهی احتمالی را ایجاد می‌کنند.** API این دو رفتار را تکرار نمی‌کند. سوابق فروش قابل ویرایش یا حذف نیستند.
 
-- تمام پاسخ‌های JSON Worker دارای `requestId` هستند؛ هدر `X-Request-ID` نیز برگردانده می‌شود.
-- اگر Cloudflare Ray ID در درخواست وجود داشته باشد، در `meta.rayId` و هدر `X-CF-Ray` برگردانده می‌شود.
-- خطاها از `errorCode` ثابت استفاده می‌کنند؛ `httpStatus` داخل خطا با وضعیت واقعی HTTP برابر است.
-- پاسخ‌ها `Cache-Control: no-store` دارند.
-- جزئیات فنی، Stack Trace، Secret و اطلاعات خصوصی در پاسخ عمومی قرار نمی‌گیرند.
+## محدودیت‌های صریح Schema زنده
+- فیلدهای کالا فقط product_id، name، unit، package_quantity، weight، weight_unit و description هستند؛ قیمت‌ها در product_prices نگهداری می‌شوند.
+- barcode، category، brand، min_stock و is_active در جدول زنده products وجود ندارند.
+- موجودی فقط خواندنی است؛ تغییر مستقیم بدون ledger و تاریخچه حسابرسی فعال نیست.
+- تسویه بدهی فعال نیست؛ sales immutable است و جدول پرداخت/تاریخچه تسویه وجود ندارد.
+- کاربران فقط خواندنی‌اند؛ تغییر نقش و وضعیت نیازمند مسیر مدیریتی و Audit است.
+- خرید، هزینه، فاکتور چندقلمی، تأمین‌کننده، چندانبار و گردش موجودی در schema زنده وجود ندارند.
+- POST /api/v1/inventory/adjust و POST /api/v1/debts/:saleId/settle فعلاً 501 LEDGER_REQUIRED برمی‌گردانند.
 
-کاتالوگ کامل خطاها و رویدادها در [AUTH_DIAGNOSTICS.md](AUTH_DIAGNOSTICS.md) است.
-
-## احراز هویت
-
-- POST /api/v1/auth/request-otp — body: { "telegramId": "..." }
-- POST /api/v1/auth/verify-otp — body: { "telegramId": "...", "code": "000000" }
-- POST /api/v1/auth/logout
-- GET /api/v1/auth/me
-
-### قرارداد امنیتی request-otp
-
-برای جلوگیری از Account Enumeration، درخواست معتبر OTP برای حساب ناشناخته، غیرفعال، محدودشده، ارسال‌شده یا دارای شکست ارسال، پاسخ عمومی یکسان HTTP 202 با `status: "unconfirmed"` و پیام خنثی دریافت می‌کند؛ بدنه `ok: true` ندارد و تأیید تحویل پیام نیست. کد خطای دقیق این وضعیت‌ها فقط در Worker Logs ثبت می‌شود. خطاهای سراسری پیش از بررسی حساب، مانند تنظیمات ناقص یا خرابی اولیهٔ D1/KV، پاسخ خطای استاندارد با requestId دارند.
-
-کد OTP پنج دقیقه اعتبار دارد و پس از پنج تلاش ناموفق حذف می‌شود. نشست حداکثر ۱۲ ساعت اعتبار دارد. نقش در هر درخواست از رکورد فعال users دوباره بررسی می‌شود.
-
-## منابع خواندنی
-
-- GET /health
-- GET /api/v1/dashboard/summary
-- GET /api/v1/products?q=&limit=&offset=
-- GET /api/v1/inventory?q=&limit=&offset=
-- GET /api/v1/sales?from=&to=&channel=&limit=&offset=
-- GET /api/v1/sales/:id
-- GET /api/v1/debts?status=open|settled&limit=&offset=
-- GET /api/v1/customers?q=&limit=&offset=
-- GET /api/v1/attendance?from=&to=&limit=&offset=
-- GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD&channel=
-
-## مدیریت کالا
-
-- `POST /api/v1/products` — ایجاد کالا بر اساس ستون‌های واقعی `products` و قیمت‌های `product_prices`؛ Trigger موجود، ردیف موجودی صفر را ایجاد می‌کند.
-- `PATCH /api/v1/products/:productId` — ویرایش مشخصات پایه و چهار نوع قیمت؛ شناسه اصلی کالا تغییر نمی‌کند.
-- هر دو مسیر برای تمام نقش‌های معتبر (`owner`، `manager` و `employee`) با نشست معتبر مجازند؛ نقش فقط هویت حساب را مشخص می‌کند و سطح دسترسی متفاوتی ایجاد نمی‌کند.
-- PATCH فقط فیلدهای ارسال‌شده و واقعاً تغییرکرده را می‌نویسد؛ Snapshot کامل برای کنترل هم‌زمانی استفاده می‌شود. تعارض Snapshot پاسخ HTTP 409 با `PRODUCT_CONFLICT` می‌دهد. نبود ردیف قیمت پاسخ 409 و درخواست بدون تغییر مؤثر پاسخ 422 می‌دهد.
-- هر CREATE/UPDATE، رویداد Audit دائمی را در همان تراکنش D1 ثبت می‌کند. request ID رویداد با request ID پاسخ Worker یکی است.
-- جست‌وجوی `GET /api/v1/products` بر اساس نام یا شناسه است و فیلتر موجودی `stock=in_stock|out_of_stock` را می‌پذیرد.
-- حذف، غیرفعال‌سازی، بارکد، دسته‌بندی و تغییر موجودی در این قرارداد نیستند؛ schema فعلی آن‌ها را پشتیبانی نمی‌کند.
-
-## مجوز
-
-- تمام نقش‌های معتبر (`owner`، `manager` و `employee`) پس از ورود، دسترسی یکسان به بخش‌ها و عملیات تعریف‌شده سایت دارند.
-- فهرست حضور و غیاب برای همه کاربران واردشده قابل مشاهده است؛ فیلتر محدود به رکورد شخصی کارمند اعمال نمی‌شود.
-- هر مسیر داده بدون نشست معتبر رد می‌شود.
-- نقش یا شناسه کاربر از Frontend برای تعیین مجوز پذیرفته نمی‌شود.
-
-## محدوده عملیات نوشتنی فعلی
-
-- کالاها: ایجاد و ویرایش مشخصات و قیمت با ثبت Audit.
-- داده‌های پایه فضای انبار: ایجاد و ویرایش دسته‌بندی، برند، انبار و موقعیت با ثبت Audit.
-- فروش، مشتریان، بدهی‌ها، حضور و غیاب، خریدها و گردش موجودی در این نسخه API نوشتنی ندارند و فقط‌خواندنی هستند. افزودن نوشتن برای این دامنه‌ها نیازمند تطبیق schema واقعی D1 و طراحی تراکنش/سوابق سازگار است؛ صرفاً اضافه‌کردن دکمه در Frontend کافی نیست.
-
-## موارد خارج از schema
-
-API خرید، تأمین‌کننده، هزینه، invoice چندقلمی، ledger پرداخت و تاریخچه پرداخت بدهی در این نسخه وجود ندارد. جدول‌های متناظر در schema تأییدشده نیستند؛ نباید داده‌ای جعل شود.
-
-## اصول داده
-
-- محصولات از products و join با product_prices و inventory خوانده می‌شوند.
-- فروش از sales و بدهی از debts.sale_id خوانده می‌شود.
-- attendance فقط SELECT است و هیچ write endpoint برای آن وجود ندارد.
-- زنجیرهٔ schema نسخه‌دار در worker/migrations شامل baseline، audit و migration افزایشی فضای انبار است؛ هیچ migration یا query نوشتنی روی Production D1 اجرا نشده است.
+## توسعه و استفاده مجدد
+- routes: قرارداد HTTP و orchestration
+- repositories: queryهای D1
+- validation: اعتبارسنجی ورودی
+- middleware: نشست و دسترسی
+- utils: پاسخ‌ها و diagnostics
+مسیرها نسخه‌بندی‌شده و مستقل از رابط سایت هستند. برای مصرف‌کننده ماشینی مانند ربات، در مرحله اتصال باید service token محدود و scopeدار تعریف شود؛ توکن نشست مرورگر را در ربات استفاده نکنید.

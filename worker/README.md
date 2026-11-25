@@ -1,105 +1,31 @@
 # Monitoring Shoma Site — Cloudflare Worker API
 
-این Worker لایه API بین GitHub Pages و دیتابیس D1 موجود فروشگاه است.
+Worker لایه API مستقل بین GitHub Pages، مصرف‌کننده‌های بعدی مانند ربات، و دیتابیس D1 است.
 
-**نام Worker:** `monitoring-shoma-site` (باید با مقدار `name` در همین پوشه و فایل `wrangler.toml` یکسان باشد).
+- Worker: \`monitoring-shoma-site\`
+- D1: \`shop-manager\`
+- Binding: \`DB\`
+- API version: \`/api/v1\`
 
-## اتصال D1
-- D1: shop-manager
-- Binding: DB
-- شناسه D1 با Worker ربات فروشگاه یکسان است.
-- GET /health با SELECT 1 اتصال binding را بررسی می‌کند.
+## ساختار
+- \`src/router.js\`: مسیریابی و نسخه API
+- \`src/routes/\`: handlerهای HTTP
+- \`src/repositories/\`: queryهای D1
+- \`src/validation/\`: اعتبارسنجی ورودی
+- \`src/middleware/\`: نشست و مجوز
+- \`src/utils/\`: پاسخ‌ها و diagnostics
 
-هیچ Migration یا SQL تغییردهنده‌ای روی Production اجرا نمی‌شود. زنجیرهٔ migration نسخه‌دار شامل 0000_baseline.sql و 0001_product_audit_log.sql است. تست‌ها هر دو را از صفر روی دیتابیس ایزوله اجرا می‌کنند. baseline برای اشیای موجود از IF NOT EXISTS استفاده می‌کند و جدول/ردیف موجود را حذف یا بازنویسی نمی‌کند؛ اما ساختار موجود را هم اصلاح نمی‌کند. پیش از هر مهاجرت remote باید schema preflight و backup انجام شود. جدول‌های users و attendance و سوابق ورود/خروج در Migration حذف نمی‌شوند.
+## امنیت
+ورود OTP تلگرام و نشست Bearer. Secretهای BOT_TOKEN و OTP_PEPPER و KV مستقل SITE_AUTH_KV باید در Cloudflare تنظیم باشند. هیچ secret در Git یا Frontend قرار نگیرد.
 
-## احراز هویت
-- ورود با Telegram ID و OTP پنج‌دقیقه‌ای از طریق Telegram Bot API؛ کاربر باید قبلاً ربات را باز کرده و `/start` زده باشد.
-- نشست ۱۲ ساعته با توکن تصادفی؛ hash نشست در KV ذخیره می‌شود.
-- Binding مستقل: SITE_AUTH_KV؛ از KV ربات استفاده نکن.
-- Secretهای لازم: BOT_TOKEN و OTP_PEPPER.
-- توکن مرورگر فقط در حافظه نگهداری می‌شود؛ پس از refresh ورود دوباره لازم است.
-- نقش از جدول users خوانده می‌شود و در هر درخواست بررسی می‌شود.
+## تطابق با D1
+کد عملیاتی فقط از جدول‌ها و ستون‌های تأییدشده در docs/DATABASE_REFERENCE.md استفاده می‌کند. Migrationهای Audit و فضای چندانبار روی Production اجرا نشده‌اند؛ Worker به آن‌ها وابسته نیست.
 
-## مجوزها
-- همه نقش‌های معتبر (`owner`، `manager` و `employee`): دسترسی یکسان به بخش‌ها و عملیات پنل پس از ورود
-- نقش فقط هویت حساب را هنگام ورود مشخص می‌کند؛ نقش نامعتبر یا نشست نامعتبر رد می‌شود.
-- کارمند اجازه ایجاد یا ویرایش کالا ندارد.
+## قواعد مالی
+- فروش فعلی یک‌قلمی است.
+- Triggerهای D1 بعد از درج فروش، موجودی را کاهش و بدهی احتمالی را ایجاد می‌کنند؛ API این کار را دوباره انجام نمی‌دهد.
+- سوابق فروش immutable هستند.
+- تغییر موجودی و تسویه بدهی تا ایجاد ledger قابل حسابرسی غیرفعال‌اند.
+- Worker باید جداگانه Deploy و با GET /health بررسی شود؛ انتشار GitHub Pages آن را Deploy نمی‌کند.
 
-## مسیرهای پیاده‌سازی‌شده
-- GET /health
-- POST /api/v1/auth/request-otp
-- POST /api/v1/auth/verify-otp
-- POST /api/v1/auth/logout
-- GET /api/v1/auth/me
-- GET /api/v1/dashboard/summary
-- GET /api/v1/products?q=&stock=&limit=&offset=
-- POST /api/v1/products (all valid authenticated roles)
-- PATCH /api/v1/products/:productId (all valid authenticated roles)
-- GET /api/v1/inventory
-- GET /api/v1/sales و GET /api/v1/sales/:id
-- GET /api/v1/debts
-- GET /api/v1/customers
-- GET /api/v1/attendance
-- GET /api/v1/reports/sales?from=YYYY-MM-DD&to=YYYY-MM-DD
-
-مسیرهای خرید، تأمین‌کنندگان، هزینه‌ها و فاکتور چندقلمی عمداً فعال نیستند؛ جدول متناظر در schema تأییدشده وجود ندارد. حذف کالا، وضعیت فعال/غیرفعال و تغییر موجودی نیز تا طراحی schema سازگار و قابل حسابرسی فعال نمی‌شوند.
-
-## راه‌اندازی Cloudflare
-1. یک KV Namespace مستقل بساز و ID آن را در بخش SITE_AUTH_KV فایل worker/wrangler.toml ثبت کن.
-2. Secret با نام BOT_TOKEN را برای Worker با نام `monitoring-shoma-site` تنظیم کن؛ مقدار آن باید توکن همان ربات فعال فروشگاه باشد که Webhook ربات اصلی از آن استفاده می‌کند.
-3. Secret مستقل OTP_PEPPER را برای همان Worker تنظیم کن.
-4. Worker با نام دقیق `monitoring-shoma-site` را Deploy کن؛ نام را با مقدار `name` در `wrangler.toml` تغییر نده.
-5. /health را بررسی کن.
-
-مراحل کامل و چک‌لیست آزمون: ../docs/IMPLEMENTATION_STATUS.md
-
-## تشخیص خطا و پیگیری درخواست
-
-- برای هر درخواست، Worker یک `requestId` تولید می‌کند؛ در JSON و هدر `X-Request-ID` برمی‌گرداند.
-- اگر Cloudflare Ray ID موجود باشد، در `meta.rayId` و هدر `X-CF-Ray` درج می‌شود.
-- لاگ‌ها ساختاریافته‌اند و timestamp، requestId، rayId و stage دارند.
-- برای خطای OTP در Cloudflare Dashboard به **Workers & Pages → monitoring-shoma-site → Logs → Live** برو و با requestId همان درخواست را دنبال کن.
-- برای خطای تلگرام، رویدادهای `AUTH_DIAGNOSTIC_FAILURE`، `AUTH_DIAGNOSTIC_DETAILS` و `OTP_DELIVERY_FAILED` را بررسی کن. فیلدهای کنترل‌شدهٔ تلگرام `httpStatus`، `telegramErrorCode`، `telegramDescription` و `retryAfter` هستند.
-- `httpStatus: null` معمولاً یعنی Fetch پیش از دریافت پاسخ HTTP شکست خورده؛ status عددی همراه کد خطای تلگرام نشان می‌دهد API پاسخ داده است.
-- برای `CONFIG_001`، رویداد `AUTH_CONFIG_MISSING` فقط نام تنظیمات مفقود را ثبت می‌کند.
-- OTP، Session Token، BOT_TOKEN، OTP_PEPPER، hashها و اطلاعات شخصی کاربران وارد لاگ نمی‌شوند.
-
-**ضد کشف حساب:** برای شناسهٔ ناشناخته، غیرفعال، محدودشده و خطای ارسال، request-otp پاسخ عمومی یکسان HTTP 202 با `status: unconfirmed` می‌دهد و موفقیت ارسال را اعلام نمی‌کند. تشخیص دقیق فقط در لاگ داخلی انجام می‌شود.
-
-مرجع کامل کدهای خطا، مراحل و روش عیب‌یابی: [../docs/AUTH_DIAGNOSTICS.md](../docs/AUTH_DIAGNOSTICS.md)
-
-## نکته امنیتی
-Cloudflare KV برای مصرف OTP اتمیک تضمین نمی‌کند؛ درخواست‌های هم‌زمان ممکن است race داشته باشند. پیش از استفاده حساس، این بخش باید با Durable Object یا ذخیره‌سازی اتمیک تقویت شود. CORS و عدم استفاده از cookie، مشکل third-party cookie در GitHub Pages را دور می‌زند؛ توکن فقط در حافظه صفحه نگهداری می‌شود.
-
-## نقش‌ها، ویرایش هم‌زمان و Audit کالا
-
-- نقش‌های معتبر: `owner`، `manager` و `employee`. نقش خارج از این فهرست در OTP رد می‌شود و middleware نشست نیز مستقلاً نقش جاری دیتابیس و نشست را بررسی می‌کند.
-- ویرایش کالا فقط فیلدهای واقعاً تغییرکرده را می‌نویسد. Snapshot کامل پایه و قیمت‌ها به‌عنوان optimistic concurrency token استفاده می‌شود؛ درخواست stale پاسخ 409 می‌گیرد.
-- Audit کالا با عملیات محصول در یک D1 batch ثبت می‌شود. شکست guard یا درج Audit کل batch را Rollback می‌کند.
-- Migrationها: `migrations/0000_baseline.sql` سپس `migrations/0001_product_audit_log.sql`.
-- تست‌ها با SQLite in-memory از همین دو Migration واقعی اجرا می‌شوند: `npm test`. تست‌های `npm run test:d1` نیز همان Migrationها را روی D1 محلی Miniflare اجرا می‌کنند. هیچ‌کدام hosted D1 یا تنظیمات Dashboard را اثبات نمی‌کنند.
-
-### اجرای Migration در محیط محلی آزمایشی
-
-فقط برای یک دیتابیس محلی/آزمایشی:
-
-```sh
-npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml
-```
-
-هرگز `--local` را حذف نکنید. این پروژه در این PR Migration را روی Production اجرا نمی‌کند. Migration تولیدی نیازمند تأیید جداگانه و backup/rollback plan است.
-
-> تست‌ها fixture مستقل ندارند و مستقیماً 0000_baseline.sql و 0001_product_audit_log.sql را به‌ترتیب اعمال می‌کنند. پیش از Production، تعریف واقعی Triggerهای D1 باید به‌صورت read-only با baseline مقایسه شود؛ CI به D1 زنده متصل نمی‌شود.
-
-
-سیاست نگهداری Audit: پاک‌سازی خودکار وجود ندارد و رویدادها تا زمان تعریف سیاست رسمی نگهداری می‌شوند. Worker جدید به جدول Audit نیاز دارد؛ قبل از Deploy آن به هر محیط، Migration متناظر باید در همان محیط اجرا و بررسی شده باشد. در این PR، Production migration و deploy انجام نشده‌اند.
-
-
-## Canonical migration sequence
-
-- 0000_baseline.sql: creates users, products, product_prices, inventory, sales, debts, customers and attendance, plus operational indexes and triggers.
-- 0001_product_audit_log.sql: creates product audit references, JSON/operation/request constraints, indexes and append-only triggers.
-- Fresh local initialization: npx wrangler d1 migrations apply shop-manager --local --config worker/wrangler.toml.
-- Test initialization uses these same files; no hand-maintained schema fixture remains.
-- For an existing D1 database, inspect all existing definitions before applying. IF NOT EXISTS is non-destructive but cannot repair a pre-existing table or trigger with an incompatible definition.
-- The hosted database was not inspected or migrated as part of this task.
+قرارداد endpointها در ../docs/API_CONTRACT.md آمده است. برای اتصال ربات یا کلاینت‌های غیرمرورگری، service token مستقل و محدود لازم است؛ از نشست مرورگر استفاده نکنید.
