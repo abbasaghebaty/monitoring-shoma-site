@@ -155,7 +155,7 @@ export default function App() {
         {active==="reports" && <div className="toolbar date-toolbar"><label>از <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>تا <input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label></div>}
         {active!=="dashboard" && active!=="reports" && active!=="products" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
         {active!=="products" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
-        {active==="products" && <ProductsPage canManage={user.role==="owner" || user.role==="manager"}/> }
+        {active==="products" && <ProductsPage canManage={isKnownRole(user.role)}/> }
         {active==="inventory-workspace" && <InventoryWorkspacePage onNavigate={setActive}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
         {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
