@@ -55,3 +55,7 @@
   .product-editor{padding:15px}
   .product-pagination{align-items:flex-start;flex-direction:column}
 }
+
+
+/* Keep the product creation action visibly styled in the toolbar. */
+.product-add-button{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:38px}
