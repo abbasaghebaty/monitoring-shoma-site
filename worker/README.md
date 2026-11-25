@@ -21,9 +21,8 @@
 - نقش از جدول users خوانده می‌شود و در هر درخواست بررسی می‌شود.
 
 ## مجوزها
-- owner و manager: منابع مدیریتی خواندنی
-- employee: فقط سوابق attendance خودش
-- منابع عملیاتی به‌صورت پیش‌فرض فقط خواندنی‌اند؛ تنها استثنا، ایجاد و ویرایش محدود کالا برای owner/manager است.
+- همه نقش‌های معتبر (`owner`، `manager` و `employee`): دسترسی یکسان به بخش‌ها و عملیات پنل پس از ورود
+- نقش فقط هویت حساب را هنگام ورود مشخص می‌کند؛ نقش نامعتبر یا نشست نامعتبر رد می‌شود.
 - کارمند اجازه ایجاد یا ویرایش کالا ندارد.
 
 ## مسیرهای پیاده‌سازی‌شده
@@ -34,8 +33,8 @@
 - GET /api/v1/auth/me
 - GET /api/v1/dashboard/summary
 - GET /api/v1/products?q=&stock=&limit=&offset=
-- POST /api/v1/products (owner/manager)
-- PATCH /api/v1/products/:productId (owner/manager)
+- POST /api/v1/products (all valid authenticated roles)
+- PATCH /api/v1/products/:productId (all valid authenticated roles)
 - GET /api/v1/inventory
 - GET /api/v1/sales و GET /api/v1/sales/:id
 - GET /api/v1/debts
