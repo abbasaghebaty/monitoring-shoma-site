@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { canRead } from "../src/auth/permissions.js";
 import { parsePagination, validIsoDate } from "../src/validation/common.js";
 
-test("role access is restricted by resource", () => {
+test("all authenticated roles can read site resources", () => {
   assert.equal(canRead("owner", "sales"), true);
   assert.equal(canRead("manager", "customers"), true);
   assert.equal(canRead("employee", "attendance"), true);
-  assert.equal(canRead("employee", "sales"), false);
+  assert.equal(canRead("employee", "sales"), true);
+  assert.equal(canRead("employee", "products"), true);
   assert.equal(canRead("unknown", "products"), false);
 });
 
