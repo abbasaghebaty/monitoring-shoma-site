@@ -235,3 +235,8 @@ Baseline برای دیتابیس موجود idempotent است اما migration r
 5. اگر schema برابر است، پس از backup و تأیید مستقل، migrationهای pending را با Wrangler اجرا کنید. هرگز با دست جدول d1_migrations را تغییر ندهید.
 
 **Physical database status: Not verified in this task.** هیچ Cloudflare D1 connector یا دسترسی Dashboard/remote SQL در این محیط در دسترس نبود. بنابراین خالی/نیمه‌کاره/کامل بودن دیتابیس واقعی قابل اعلام نیست.
+
+
+## Migration 0002 — inventory master data
+
+The additive migration adds product barcode/category/brand/minimum-stock/active fields and the category, brand, warehouse, warehouse-location and inventory-workspace-audit tables. It does not rewrite existing product, inventory, sales, debt, customer, user or attendance rows. It has not been applied to hosted D1. Before any remote execution, compare the hosted schema read-only against the full migration chain and take a backup.

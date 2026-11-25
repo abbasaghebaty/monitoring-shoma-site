@@ -214,3 +214,7 @@
 3. با کاربر از مسیر Cloudflare Dashboard برای استخراج schema هماهنگ شو.
 4. ابتدا فقط metadata ساختار را دریافت کن؛ هنوز داده واقعی را نخوان و چیزی را تغییر نده.
 5. بعد از تحلیل schema، queryهای قدیمی ربات را با ساختار واقعی تطبیق بده؛ سپس repositoryهای Worker و قرارداد read API را بر همان ستون‌ها بساز. هیچ تغییر schema انجام نده.
+
+
+## Inventory workspace phase 1 safety boundary
+The first master-data migration is additive and is not approved for Production execution by this code change. Perform a read-only schema preflight and independent backup before requesting approval to apply it. Stock movements and multi-warehouse balances must not be enabled until a ledger design is proven compatible with the current sales stock triggers.

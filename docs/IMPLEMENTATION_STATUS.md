@@ -93,3 +93,11 @@ Commit در شاخه توسعه به‌تنهایی به معنی Deploy نیس�
 - [x] هیچ فایل قبلی حذف نشد و هیچ Migration یا تغییر D1 انجام نشد.
 - [ ] اتصال دامنه‌های فاقد API پس از بررسی read-only schema و طراحی Migration سازگار انجام شود.
 - [ ] build و تست‌های CI این شاخه باید از طریق Pull Request بررسی شوند؛ تا قبل از اجرای موفق CI، صحت build تأییدشده محسوب نمی‌شود.
+
+
+## Inventory workspace integration — phase 1
+- Added additive migration 0002 for categories, brands, warehouses, warehouse locations, product metadata fields and append-only workspace audit.
+- Added authenticated Worker list/create/update routes for the four master-data entities. Writes are restricted to owner/manager and use updated_at compare-and-swap plus transactional audit.
+- Added frontend API methods and CRUD form/table view for those four sections.
+- Multi-warehouse stock, movement ledger, purchase/receiving and adjustments remain intentionally inactive until a stock ledger is designed to preserve existing sales triggers.
+- Migration 0002 has not been applied to hosted D1; CI/local migration tests are the required validation boundary.
