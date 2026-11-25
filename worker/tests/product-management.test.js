@@ -212,31 +212,31 @@ test("product search uses bound values and SQLite inventory rows", async (t) => 
   assert.equal(result.pagination.total, 1);
 });
 
-test("employee cannot create or update products and unauthenticated callers receive 401", async (t) => {
+test("all valid roles can manage products while unauthenticated callers receive 401", async (t) => {
   const { DB, sqlite, close } = setup(); t.after(close);
   await createProduct(DB, { product_id: "P-BASE", name: "کالای پایه", sell_price: 20 }, auditContext("employee-base"));
+  const employee = { ...user, role: "employee" };
   const createRequest = new Request("https://worker.test/api/v1/products", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ product_id: "P-DENIED", name: "کالا" }),
+    body: JSON.stringify({ product_id: "P-NEW", name: "کالای جدید" }),
   });
-  const employee = { ...user, role: "employee" };
-  const deniedCreate = await productWriteRoutes(createRequest, { DB }, new URL(createRequest.url), employee, { requestId: "denied-create" });
-  assert.equal(deniedCreate.status, 403);
+  const created = await productWriteRoutes(createRequest, { DB }, new URL(createRequest.url), employee, { requestId: "employee-create" });
+  assert.equal(created.status, 201);
   const updateRequest = new Request("https://worker.test/api/v1/products/P-BASE", {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sell_price: 99 }),
   });
-  const deniedUpdate = await productWriteRoutes(updateRequest, { DB }, new URL(updateRequest.url), employee, { requestId: "denied-update" });
-  assert.equal(deniedUpdate.status, 403);
-  assert.equal((await getProduct(DB, "P-BASE")).sell_price, 20);
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE product_id=?").get("P-DENIED").n, 0);
+  const updated = await productWriteRoutes(updateRequest, { DB }, new URL(updateRequest.url), employee, { requestId: "employee-update" });
+  assert.equal(updated.status, 200);
+  assert.equal((await getProduct(DB, "P-BASE")).sell_price, 99);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE product_id=?").get("P-NEW").n, 1);
   const unauthenticated = await router(createRequest, { SITE_AUTH_KV: { async get() { return null; } } });
   assert.equal(unauthenticated.status, 401);
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM product_audit_log").get().n, 1);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM product_audit_log").get().n, 3);
 });
 
-test("only owner and manager may manage products", () => {
+test("all valid roles may manage products; unknown roles may not", () => {
   assert.equal(canManage("owner"), true);
   assert.equal(canManage("manager"), true);
-  assert.equal(canManage("employee"), false);
+  assert.equal(canManage("employee"), true);
   assert.equal(canManage("admin"), false);
 });
