@@ -29,8 +29,7 @@ export async function resourceRoutes(request, env, url, user) {
   if (!match) return null;
   const [resource, handler] = match;
   if (!canRead(user.role, resource)) return json({ ok:false, error:{code:"FORBIDDEN",message:"برای مشاهده این بخش مجوز ندارید."} },403);
-  const data = resource === "attendance"
-    ? await handler(env.DB, url, user.role === "employee" ? user.telegram_id : null)
-    : await handler(env.DB, url);
+  // All authenticated roles have the same site access; attendance is not self-only.
+  const data = await handler(env.DB, url);
   return json({ ok:true, data });
 }
