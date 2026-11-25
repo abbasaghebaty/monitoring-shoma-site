@@ -1,5 +1,9 @@
 # قرارداد Schema و تطبیق با Cloudflare D1
 
+## وضعیت snapshot زنده (2026-11-25)
+
+مرجع تازه و کامل ساختار مشاهده‌شده در Cloudflare D1 اکنون در [DATABASE_REFERENCE.md](DATABASE_REFERENCE.md) ثبت شده است. snapshot قدیمی‌تر پایین این سند، سابقه مستندات قبلی است و نباید به‌عنوان وضعیت فعلی D1 استفاده شود. در snapshot جدید، جدول‌های Audit و فضای انبار هنوز در دیتابیس زنده مشاهده نشده‌اند و چند اختلاف با baseline نیز ثبت شده است.
+
 ## تصمیم فعلی
 
 Schema canonical پروژه در worker/migrations تعریف می‌شود. فایل 0000_baseline.sql دیتابیس تازه را از صفر می‌سازد و 0001_product_audit_log.sql Audit را اضافه می‌کند. Baseline از CREATE TABLE/INDEX/TRIGGER IF NOT EXISTS استفاده می‌کند؛ برای اشیای موجود DDL را تغییر نمی‌دهد و داده‌ای را حذف یا بازنویسی نمی‌کند.
