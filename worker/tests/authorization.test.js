@@ -33,16 +33,12 @@ async function verifyForRole(role) {
   return { response: await verifyOtp(verifyRequest(), env), kv };
 }
 
-test("owner and manager get management navigation and dashboard initial page", () => {
-  for (const role of ["owner", "manager"]) {
+test("all valid roles get the full navigation and dashboard initial page", () => {
+  for (const role of ["owner", "manager", "employee"]) {
     assert.equal(isKnownRole(role), true);
     assert.equal(getInitialPage(role), "dashboard");
     assert.deepEqual(getVisibleNavigation(role, NAV), NAV);
   }
-});
-test("employee initially opens attendance and receives attendance-only navigation", () => {
-  assert.equal(getInitialPage("employee"), "attendance");
-  assert.deepEqual(getVisibleNavigation("employee", NAV), [NAV[2]]);
 });
 test("unknown roles never receive management navigation or an initial page", () => {
   assert.equal(isKnownRole("admin"), false);
