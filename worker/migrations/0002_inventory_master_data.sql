@@ -15,8 +15,16 @@ CREATE INDEX idx_warehouse_locations_warehouse ON warehouse_locations(warehouse_
 CREATE TABLE inventory_workspace_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_telegram_id INTEGER NOT NULL REFERENCES users(telegram_id) ON DELETE RESTRICT, entity_type TEXT NOT NULL CHECK(entity_type IN ('category','brand','warehouse','location')), entity_id TEXT NOT NULL, operation TEXT NOT NULL CHECK(operation IN ('CREATE','UPDATE')), previous_values TEXT, new_values TEXT NOT NULL CHECK(json_valid(new_values) AND json_type(new_values)='object'), created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')), request_id TEXT NOT NULL UNIQUE CHECK(length(trim(request_id))>0), CHECK((operation='CREATE' AND previous_values IS NULL) OR (operation='UPDATE' AND previous_values IS NOT NULL AND json_valid(previous_values) AND json_type(previous_values)='object')));
 CREATE INDEX idx_inventory_workspace_audit_entity ON inventory_workspace_audit(entity_type,entity_id,created_at DESC);
 CREATE INDEX idx_inventory_workspace_audit_actor ON inventory_workspace_audit(actor_telegram_id,created_at DESC);
-CREATE TRIGGER trg_inventory_workspace_audit_no_update BEFORE UPDATE ON inventory_workspace_audit BEGIN SELECT RAISE(ABORT,'inventory_workspace_audit is append-only'); END;
-CREATE TRIGGER trg_inventory_workspace_audit_no_delete BEFORE DELETE ON inventory_workspace_audit BEGIN SELECT RAISE(ABORT,'inventory_workspace_audit is append-only'); END;
+CREATE TRIGGER trg_inventory_workspace_audit_no_update
+BEFORE UPDATE ON inventory_workspace_audit
+BEGIN
+  SELECT RAISE(ABORT,'inventory_workspace_audit is append-only');
+END;
+CREATE TRIGGER trg_inventory_workspace_audit_no_delete
+BEFORE DELETE ON inventory_workspace_audit
+BEGIN
+  SELECT RAISE(ABORT,'inventory_workspace_audit is append-only');
+END;
 CREATE INDEX idx_products_category ON products(category_id);
 CREATE INDEX idx_products_brand ON products(brand_id);
 CREATE INDEX idx_products_barcode ON products(barcode);
