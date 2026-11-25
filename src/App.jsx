@@ -12,9 +12,8 @@ const NAV = [
   ["بدهی‌ها", "debts", Wallet], ["مشتریان", "customers", Users],
   ["ورود و خروج", "attendance", Clock3], ["گزارش فروش", "reports", ChartNoAxesCombined],
 ];
-const MONEY
+const MONEY = new Intl.NumberFormat("fa-IR");
 NAV.push(["مدیریت انبار پیشرفته", "inventory-workspace", Boxes]);
- = new Intl.NumberFormat("fa-IR");
 const number = (value) => MONEY.format(Number(value || 0));
 const money = (value) => number(value) + " تومان";
 const date = (value) => value ? new Date(value).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "—";
