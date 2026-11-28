@@ -158,6 +158,7 @@ export default function App() {
   async function logout() { try { await api.logout(); } catch {} clearAccessToken(); setUser(null); setData(null); setRows([]); }
   if (!user || !isKnownRole(user.role)) return <Login onLogin={handleLogin}/>;
   const table = TABLES[active];
+  const tableColumns = active==="inventory" && user.role==="employee" ? table.columns.filter(column=>column.key!=="purchase_price") : table?.columns;
   const pageTitle = active==="dashboard"?"داشبورد مدیریتی":table?.title || title;
   return <div className="app-shell" dir="rtl">
     <aside className={"sidebar "+(mobile?"sidebar-open":"")}><div className="brand"><div className="brand-mark">ش</div><div><b>شما</b><small>مدیریت فروشگاه</small></div><button className="close-menu" onClick={()=>setMobile(false)}>×</button></div>
@@ -173,7 +174,7 @@ export default function App() {
         {active==="products" && <ProductsPage canManage={canManageProducts(user.role)}/> }
         {active==="inventory-workspace" && <InventoryWorkspacePage onNavigate={setActive}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
-        {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
+        {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={tableColumns} rows={rows}/>}
         {!loading&&!error&&active==="reports"&&reportData&&<><div className="metrics-grid compact"><div className="metric"><div className="metric-top">تعداد فروش</div><strong>{number(reportData.totals?.sale_count)}</strong></div><div className="metric"><div className="metric-top">مبلغ کل</div><strong>{money(reportData.totals?.total_amount)}</strong></div><div className="metric"><div className="metric-top">پرداخت‌شده</div><strong>{money(reportData.totals?.paid_amount)}</strong></div><div className="metric"><div className="metric-top">مانده</div><strong>{money(reportData.totals?.balance_amount)}</strong></div></div><Table columns={[{key:"sale_date",label:"تاریخ"},{key:"sale_count",label:"تعداد فروش",render:v=>number(v)},{key:"total_amount",label:"مبلغ کل",render:v=>money(v)}]} rows={reportData.daily||[]}/></>}
       </div><footer>شما · پنل مدیریت <span>عملیات کالا فقط برای نقش‌های مجاز فعال است؛ سوابق فروش تغییرناپذیرند</span></footer>
     </main>{mobile&&<button className="sidebar-scrim" onClick={()=>setMobile(false)} aria-label="بستن منو"/>}
