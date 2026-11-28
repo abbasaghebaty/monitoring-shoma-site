@@ -10,6 +10,8 @@ import {
 import { productWriteRoutes } from "../worker/src/routes/products.js";
 import { domainWriteRoutes } from "../worker/src/routes/domain-write.js";
 import { canRead, canManage } from "../worker/src/auth/permissions.js";
+import { verifyOtp } from "../worker/src/auth/otp.js";
+import { sha256 } from "../worker/src/auth/crypto.js";
 import { listInventory } from "../worker/src/repositories/inventory.js";
 import { listSales } from "../worker/src/repositories/sales.js";
 import { listDebts } from "../worker/src/repositories/debts.js";
@@ -414,5 +416,47 @@ describe("role permissions and operational concurrency", () => {
     expect(data.channels[0].sale_channel).toBe("in_store");
     expect(Number(data.channels[0].total_amount)).toBe(Number(data.totals.total_amount));
     expect(data.daily.reduce((sum, row) => sum + Number(row.total_amount), 0)).toBe(Number(data.totals.total_amount));
+  });
+});
+
+
+describe("OTP one-time verification integrity", () => {
+  it("allows exactly one successful verification for concurrent requests", async () => {
+    const pepper = "isolated-test-pepper";
+    const code = "123456";
+    const now = Math.floor(Date.now() / 1000);
+    const hash = await sha256(`${actorTelegramId}:${code}:${pepper}`);
+    await env.DB.prepare(
+      "INSERT INTO auth_otp_challenges (telegram_id,otp_hash,attempts,created_at,expires_at,consumed_at) VALUES (?,?,0,?,?,NULL) ON CONFLICT(telegram_id) DO UPDATE SET otp_hash=excluded.otp_hash,attempts=0,created_at=excluded.created_at,expires_at=excluded.expires_at,consumed_at=NULL"
+    ).bind(actorTelegramId,hash,now,now+300).run();
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper };
+    const request = () => new Request("https://worker.test/api/v1/auth/verify-otp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId: String(actorTelegramId), code }),
+    });
+    const responses = await Promise.all([verifyOtp(request(),testEnv),verifyOtp(request(),testEnv)]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200,401]);
+    const challenge = await env.DB.prepare("SELECT consumed_at FROM auth_otp_challenges WHERE telegram_id=?").bind(actorTelegramId).first();
+    expect(challenge.consumed_at).not.toBeNull();
+  });
+
+  it("atomically counts failed attempts and consumes a challenge at the limit", async () => {
+    const pepper = "isolated-test-pepper-2";
+    const now = Math.floor(Date.now() / 1000);
+    const hash = await sha256(`${actorTelegramId}:654321:${pepper}`);
+    await env.DB.prepare(
+      "INSERT INTO auth_otp_challenges (telegram_id,otp_hash,attempts,created_at,expires_at,consumed_at) VALUES (?,?,0,?,?,NULL) ON CONFLICT(telegram_id) DO UPDATE SET otp_hash=excluded.otp_hash,attempts=0,created_at=excluded.created_at,expires_at=excluded.expires_at,consumed_at=NULL"
+    ).bind(actorTelegramId,hash,now,now+300).run();
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper };
+    for (let attempt=0; attempt<5; attempt++) {
+      const response = await verifyOtp(new Request("https://worker.test/api/v1/auth/verify-otp", {
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({telegramId:String(actorTelegramId),code:"000000"}),
+      }),testEnv);
+      expect(response.status).toBe(401);
+    }
+    const challenge = await env.DB.prepare("SELECT attempts,consumed_at FROM auth_otp_challenges WHERE telegram_id=?").bind(actorTelegramId).first();
+    expect(challenge.attempts).toBe(5);
+    expect(challenge.consumed_at).not.toBeNull();
   });
 });
