@@ -14,7 +14,7 @@ export async function productWriteRoutes(request,env,url,user,context=null){
   const body=await readJson(request);if(!body)return failure(400,"VALIDATION_001","بدنه درخواست معتبر نیست.");
   const errors=validateProductDraft(body,{creating:true});if(Object.keys(errors).length)return failure(400,"VALIDATION_001","اطلاعات کالا معتبر نیست.",{fields:errors});
   try{const product=await createProduct(env.DB,body,auditContext(user,context));logEvent(context,"info","PRODUCT_CREATED",{outcome:"success",productId:product?.product_id});return json({ok:true,data:{product}},201);}
-  catch(error){const duplicate=/UNIQUE constraint failed|PRIMARY KEY/i.test(String(error?.message||""));if(!duplicate)logFailure(context,{errorCode:"PRODUCT_001",stage:"product_create",error,dependency:"D1"});return failure(duplicate?409:500,duplicate?"PRODUCT_002":"PRODUCT_001",duplicate?"شناسه این کالا قبلاً ثبت شده است.":"ذخیره کالا انجام نشد.");}
+  catch(error){const duplicate=/UNIQUE constraint failed: products\\.product_id/i.test(String(error?.message||""));if(!duplicate)logFailure(context,{errorCode:"PRODUCT_001",stage:"product_create",error,dependency:"D1"});return failure(duplicate?409:500,duplicate?"PRODUCT_002":"PRODUCT_001",duplicate?"شناسه این کالا قبلاً ثبت شده است.":"ذخیره کالا انجام نشد.");}
  }
  if(match&&request.method==="PATCH"){
   let id;try{id=decodeURIComponent(match[1]);}catch{return failure(400,"VALIDATION_001","شناسه کالا معتبر نیست.");}
