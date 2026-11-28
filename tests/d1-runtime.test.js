@@ -124,7 +124,7 @@ describe("Cloudflare D1 runtime product integrity", () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
     ).all();
     expect(tables.results.map((row) => row.name)).toEqual([
-      "auth_otp_challenges", "auth_rate_limits", "attendance", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
+      "attendance", "auth_otp_challenges", "auth_rate_limits", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
       "product_brands", "product_categories", "product_prices", "products", "sales", "users", "warehouse_locations", "warehouses",
     ]);
 
