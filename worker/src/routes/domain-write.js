@@ -76,7 +76,7 @@ export async function domainWriteRoutes(request,env,url,user){
 export async function userReadRoutes(request,env,url,user){
  if(url.pathname!=="/api/v1/users"||request.method!=="GET")return null;
  if(!canRead(user?.role,"users"))return fail(403,"FORBIDDEN","برای مشاهده کاربران مجوز کافی ندارید.");
- const {limit,offset}=parsePagination(url),q=(url.searchParams.get("q")||"").trim().slice(0,100),where=q?"WHERE full_name LIKE ? OR COALESCE(username,'') LIKE ?":"",params=q?["%"+q+"%","%"+q+"%"]:[];
+ const {limit,offset}=parsePagination(url),q=(url.searchParams.get("q")||"").trim().slice(0,100),where=q?"WHERE instr(lower(full_name),lower(?))>0 OR instr(lower(COALESCE(username,'')),lower(?))>0":"",params=q?[q,q]:[];
  const rows=await env.DB.prepare("SELECT telegram_id,full_name,username,role,is_active,created_at FROM users "+where+" ORDER BY full_name COLLATE NOCASE LIMIT ? OFFSET ?").bind(...params,limit,offset).all();
  const count=await env.DB.prepare("SELECT COUNT(*) AS total FROM users "+where).bind(...params).first();
  return json({ok:true,data:{items:rows.results||[],pagination:{limit,offset,total:Number(count?.total||0)}}});
