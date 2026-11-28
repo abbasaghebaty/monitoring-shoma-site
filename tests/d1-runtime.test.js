@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import {
   createProduct,
@@ -10,7 +10,7 @@ import {
 import { productWriteRoutes } from "../worker/src/routes/products.js";
 import { domainWriteRoutes } from "../worker/src/routes/domain-write.js";
 import { canRead, canManage } from "../worker/src/auth/permissions.js";
-import { verifyOtp } from "../worker/src/auth/otp.js";
+import { requestOtp, verifyOtp } from "../worker/src/auth/otp.js";
 import { sha256 } from "../worker/src/auth/crypto.js";
 import { listInventory } from "../worker/src/repositories/inventory.js";
 import { listSales } from "../worker/src/repositories/sales.js";
@@ -326,7 +326,7 @@ describe("inventory workspace master-data D1 integration", () => {
     const audit = await env.DB.prepare("SELECT COUNT(*) count FROM inventory_workspace_audit WHERE entity_id=?").bind(brand.id).first();
     expect(Number(audit.count)).toBe(2);
   });
-  it("allows all valid roles to manage master data and rejects unknown roles", async () => {
+  it("restricts master-data writes to manager and owner roles", async () => {
     const url = new URL("https://worker.test/api/v1/inventory-workspace/brands");
     const makeRequest = (name) => new Request(url, {
       method: "POST",
@@ -398,6 +398,17 @@ describe("role permissions and operational concurrency", () => {
     expect(Number(open.count)).toBe(1);
   });
 
+
+
+  it("denies employee access to financial dashboards and reports", async () => {
+    const summaryUrl = new URL("https://worker.test/api/v1/dashboard/summary");
+    const summary = await dashboardRoutes(new Request(summaryUrl), { DB: env.DB }, summaryUrl, { ...manager, role: "employee" });
+    expect(summary.status).toBe(403);
+    const reportUrl = new URL("https://worker.test/api/v1/reports/sales?from=2026-11-01&to=2026-11-30");
+    const report = await dashboardRoutes(new Request(reportUrl), { DB: env.DB }, reportUrl, { ...manager, role: "employee" });
+    expect(report.status).toBe(403);
+  });
+
   it("keeps all sales report sections consistent with a selected channel", async () => {
     const productId = id("D1-CHANNEL-FILTER");
     await createProduct(env.DB, { product_id: productId, name: "channel filter", sell_price: 10, purchase_price: 4 }, context(id("channel-create")));
@@ -458,5 +469,35 @@ describe("OTP one-time verification integrity", () => {
     const challenge = await env.DB.prepare("SELECT attempts,consumed_at FROM auth_otp_challenges WHERE telegram_id=?").bind(actorTelegramId).first();
     expect(challenge.attempts).toBe(5);
     expect(challenge.consumed_at).not.toBeNull();
+  });
+});
+
+
+describe("OTP request rate-limit reservation", () => {
+  it("allows only one concurrent OTP send for the same Telegram account", async () => {
+    const pepper = "isolated-rate-limit-pepper";
+    const send = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 }));
+    vi.stubGlobal("fetch", send);
+    try {
+      const testEnv = {
+        DB: env.DB,
+        SITE_AUTH_KV: env.SITE_AUTH_KV,
+        OTP_PEPPER: pepper,
+        BOT_TOKEN: "test-token-not-used-outside-this-isolated-mock",
+      };
+      const request = () => new Request("https://worker.test/api/v1/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.18" },
+        body: JSON.stringify({ telegramId: String(actorTelegramId) }),
+      });
+      const responses = await Promise.all([requestOtp(request(),testEnv),requestOtp(request(),testEnv)]);
+      expect(responses.map((response) => response.status)).toEqual([202,202]);
+      expect(send).toHaveBeenCalledTimes(1);
+      const accountKey = await sha256(`otp-account:${actorTelegramId}:${pepper}`);
+      const rate = await env.DB.prepare("SELECT request_count FROM auth_rate_limits WHERE key_hash=?").bind(accountKey).first();
+      expect(rate.request_count).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
