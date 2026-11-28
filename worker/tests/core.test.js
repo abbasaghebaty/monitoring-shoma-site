@@ -27,3 +27,8 @@ test("ISO dates are calendar-valid", () => {
   assert.equal(validIsoDate("2026-02-31"), false);
   assert.equal(validIsoDate("17/11/2026"), false);
 });
+
+
+test("CORS preflight advertises PATCH for supported update endpoints", () => {
+  assert.match(corsHeaders("https://example.test")["Access-Control-Allow-Methods"], /PATCH/);
+});
