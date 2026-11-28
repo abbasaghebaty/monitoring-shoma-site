@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { getInitialPage, getVisibleNavigation, isKnownRole } from "../../src/modules/access.js";
 import { requestOtp, verifyOtp } from "../src/auth/otp.js";
 import { requireSession } from "../src/middleware/auth.js";
+import { getSession } from "../src/auth/session.js";
 import { sha256 } from "../src/auth/crypto.js";
 
 const NAV = [["Dashboard", "dashboard"], ["Products", "products"], ["Attendance", "attendance"]];
@@ -136,4 +137,22 @@ test("OTP request does not issue a code to an account with an unknown role", asy
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test("malformed and future-dated KV sessions are discarded", async () => {
+  const tokenA = "c".repeat(64), tokenB = "d".repeat(64);
+  const keyA = "session:" + await sha256(tokenA);
+  const keyB = "session:" + await sha256(tokenB);
+  const kv = makeKv({
+    [keyA]: "{not-json",
+    [keyB]: JSON.stringify({ telegramId: 123456, createdAt: Date.now() + 10 * 60 * 1000, role: "owner" }),
+  });
+  const env = { SITE_AUTH_KV: kv };
+  const a = await getSession(new Request("https://worker.test/", { headers: { Authorization: "Bearer " + tokenA } }), env);
+  const b = await getSession(new Request("https://worker.test/", { headers: { Authorization: "Bearer " + tokenB } }), env);
+  assert.equal(a, null);
+  assert.equal(b, null);
+  assert.equal(kv.values.has(keyA), false);
+  assert.equal(kv.values.has(keyB), false);
 });
