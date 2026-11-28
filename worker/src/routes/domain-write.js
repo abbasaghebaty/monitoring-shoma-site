@@ -46,7 +46,8 @@ export async function domainWriteRoutes(request,env,url,user){
   const product=await env.DB.prepare("SELECT p.product_id,pp.purchase_price,pp.sell_price,pp.consumer_price FROM products p JOIN product_prices pp ON pp.product_id=p.product_id WHERE p.product_id=?").bind(productId).first();
   if(!product)return fail(404,"PRODUCT_NOT_FOUND","کالای انتخاب‌شده پیدا نشد.");
   const sellPrice=user.role==="employee"?Number(product.sell_price):(b.sell_price==null?Number(product.sell_price):Number(b.sell_price));
-  if(!Number.isSafeInteger(sellPrice)||sellPrice<0||paid>quantity*sellPrice)return fail(400,"INVALID_PAYMENT","قیمت یا مبلغ پرداختی معتبر نیست.");
+  const totalAmount=quantity*sellPrice;
+  if(!Number.isSafeInteger(sellPrice)||sellPrice<0||!Number.isSafeInteger(totalAmount)||paid>totalAmount)return fail(400,"INVALID_PAYMENT","قیمت یا مبلغ پرداختی معتبر نیست.");
   try{
    const sale=await env.DB.prepare("INSERT INTO sales(product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method,customer_name) VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id,product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method,total_amount,balance_amount,discount_amount,created_at,customer_name")
     .bind(productId,quantity,saleDate,saleTime,channel,Number(product.purchase_price),sellPrice,Number(product.consumer_price),paid,paymentMethod,customerName).first();
