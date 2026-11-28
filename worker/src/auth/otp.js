@@ -182,9 +182,16 @@ export async function requestOtp(request, env, context = null) {
   }
 
   try {
-    setStage(context, "otp_storage");
+    setStage(context, "legacy_otp_invalidation");
     // Invalidate any challenge issued by the previous KV-backed implementation.
     await env.SITE_AUTH_KV.delete(`otp:${telegramId}`);
+  } catch (error) {
+    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "legacy_otp_invalidation", error, "KV");
+    return publicOtpOutcome();
+  }
+
+  try {
+    setStage(context, "otp_storage");
     await env.DB.prepare(`
       INSERT INTO auth_otp_challenges (telegram_id, otp_hash, attempts, created_at, expires_at, consumed_at)
       VALUES (?, ?, 0, ?, ?, NULL)
