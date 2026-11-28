@@ -14,9 +14,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -24,9 +28,46 @@ jobs:
       - name: Update npm to a peer-resolution version supported by the Node 22 runner
         run: npm install --global npm@11.21.2
       - name: Install dependencies
-        run: npm install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
       - name: Install Worker dependencies
-        run: npm --prefix worker install
+        run: |
+          if [ -f worker/package-lock.json ]; then npm --prefix worker ci; else npm --prefix worker install; fi
+      - name: Commit generated lockfiles to same-repository PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const branch = context.payload.pull_request.head.ref;
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            const parent = await github.rest.git.getCommit({ owner, repo, commit_sha: ref.data.object.sha });
+            const files = ['package-lock.json', 'worker/package-lock.json'];
+            const tree = [];
+            for (const path of files) {
+              const content = fs.readFileSync(path, 'utf8');
+              const blob = await github.rest.git.createBlob({ owner, repo, content, encoding: 'utf-8' });
+              tree.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
+            }
+            const nextTree = await github.rest.git.createTree({
+              owner, repo, base_tree: parent.data.tree.sha, tree
+            });
+            const commit = await github.rest.git.createCommit({
+              owner, repo, message: 'build: add generated dependency lockfiles',
+              tree: nextTree.data.sha, parents: [ref.data.object.sha]
+            });
+            await github.rest.git.updateRef({
+              owner, repo, ref: `heads/${branch}`, sha: commit.data.sha
+            });
+      - name: Upload generated lockfiles for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-lockfiles
+          path: |
+            package-lock.json
+            worker/package-lock.json
       - name: Test Worker utilities and isolated SQLite integration
         run: npm --prefix worker test
       - name: Test against isolated Cloudflare D1 runtime
@@ -35,19 +76,12 @@ jobs:
         env:
           VITE_APP_ENV: production
         run: npm run build
-      - name: Upload generated lockfiles for pinning
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-lockfiles
-          path: |
-            package-lock.json
-            worker/package-lock.json
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
