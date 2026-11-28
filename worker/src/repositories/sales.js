@@ -8,7 +8,7 @@ export async function listSales(db, url) {
   if(from){clauses.push("s.sale_date >= ?");values.push(from);}
   if(to){clauses.push("s.sale_date <= ?");values.push(to);}
   if(channel){clauses.push("s.sale_channel = ?");values.push(channel);}
-  if(q){clauses.push("(p.name LIKE ? OR COALESCE(s.customer_name,'') LIKE ?)");values.push(`%${q}%`,`%${q}%`);}
+  if(q){clauses.push("(instr(lower(p.name),lower(?))>0 OR instr(lower(COALESCE(s.customer_name,'')),lower(?))>0)");values.push(q,q);}
   const where=clauses.length?"WHERE "+clauses.join(" AND "):"";
   const {results=[]}=await db.prepare(`
     SELECT s.id,s.product_id,p.name AS product_name,s.quantity,s.sale_date,s.sale_time,
