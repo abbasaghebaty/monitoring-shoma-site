@@ -34,7 +34,7 @@ export async function listProducts(db, url) {
   const q = (url.searchParams.get("q") || "").trim().slice(0,100);
   const stock = url.searchParams.get("stock");
   const clauses=[], values=[];
-  if(q){clauses.push("(p.name LIKE ? OR p.product_id LIKE ?)");values.push("%"+q+"%","%"+q+"%");}
+  if(q){clauses.push("(instr(lower(p.name),lower(?))>0 OR instr(lower(p.product_id),lower(?))>0)");values.push(q,q);}
   if(stock==="in_stock") clauses.push("COALESCE(i.quantity,0)>0");
   if(stock==="out_of_stock") clauses.push("COALESCE(i.quantity,0)=0");
   const where=clauses.length?" WHERE "+clauses.join(" AND "):"";
