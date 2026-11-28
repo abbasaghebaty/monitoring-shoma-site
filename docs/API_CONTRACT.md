@@ -66,3 +66,16 @@ POST /api/v1/sales بدنه‌ای شامل product_id، quantity و در صور
 - Challenge جدید OTP در D1 نگهداری می‌شود؛ مصرف کد و افزایش تلاش ناموفق به‌صورت شرطی و اتمیک انجام می‌شود.
 - برای سازگاری کوتاه‌مدت، verify امکان پذیرش OTPهای KV صادرشده توسط نسخه قبلی را تا پایان TTL آن‌ها حفظ می‌کند.
 - این رفتار به جدول‌های Migration شماره 0003 وابسته است؛ تا اجرای تأییدشده آن در محیط مقصد، Worker جدید نباید Deploy شود.
+
+
+## Inventory Workspace API
+
+این Routeها در Worker ثبت شده‌اند و فقط برای owner و manager مجازند. استفاده از آن‌ها به اجرای Migration 0002 در محیط مقصد وابسته است؛ در snapshot مستندشده Production، جدول‌های متناظر موجود نیستند.
+
+| Method | Path | رفتار |
+|---|---|---|
+| GET | `/api/v1/inventory-workspace/:entity` | فهرست دسته‌بندی، برند، انبار یا موقعیت |
+| POST | `/api/v1/inventory-workspace/:entity` | ایجاد رکورد |
+| PATCH | `/api/v1/inventory-workspace/:entity/:id` | ویرایش با کنترل تعارض و Audit |
+
+مقادیر مجاز `:entity` از Registry داخلی Worker تعیین می‌شوند. GET جزئیات تک‌رکوردی در این Route family ارائه نشده است. صفحه‌های UI این فضا هنوز به endpointها متصل نیستند.
