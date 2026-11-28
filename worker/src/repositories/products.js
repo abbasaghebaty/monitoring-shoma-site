@@ -53,7 +53,8 @@ function normalize(field,value){
 function auditInsert(db, context, productId, operation, previousValues, newValues) {
   const actor = context.actorTelegramId;
   return db.prepare(
-    "INSERT INTO product_audit_log (actor_telegram_id, product_id, operation, previous_values, new_values, request_id) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO product_audit_log (actor_telegram_id, product_id, operation, previous_values, new_values, request_id) "+
+    "SELECT CASE WHEN changes()=1 THEN ? ELSE NULL END, ?, ?, ?, ?, ?"
   ).bind(actor, productId, operation, previousValues == null ? null : JSON.stringify(previousValues), JSON.stringify(newValues), context.requestId);
 }
 
