@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { canRead } from "../src/auth/permissions.js";
 import { parsePagination, validIsoDate } from "../src/validation/common.js";
+import { corsHeaders } from "../src/middleware/cors.js";
 
 test("all authenticated roles can read site resources", () => {
   assert.equal(canRead("owner", "sales"), true);
