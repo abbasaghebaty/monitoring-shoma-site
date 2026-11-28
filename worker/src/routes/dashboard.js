@@ -22,7 +22,7 @@ export async function dashboardRoutes(request, env, url, user) {
     const [totals,daily,channels]=await Promise.all([
       env.DB.prepare(`SELECT COUNT(*) AS sale_count, COALESCE(SUM(total_amount),0) AS total_amount, COALESCE(SUM(amount_paid),0) AS paid_amount, COALESCE(SUM(balance_amount),0) AS balance_amount FROM sales WHERE sale_date BETWEEN ? AND ?${channelClause}`).bind(...params).first(),
       env.DB.prepare(`SELECT sale_date, COUNT(*) AS sale_count, SUM(total_amount) AS total_amount FROM sales WHERE sale_date BETWEEN ? AND ?${channelClause} GROUP BY sale_date ORDER BY sale_date`).bind(...params).all(),
-      env.DB.prepare("SELECT sale_channel, COUNT(*) AS sale_count, SUM(total_amount) AS total_amount FROM sales WHERE sale_date BETWEEN ? AND ? GROUP BY sale_channel ORDER BY total_amount DESC").bind(from,to).all(),
+      env.DB.prepare(`SELECT sale_channel, COUNT(*) AS sale_count, SUM(total_amount) AS total_amount FROM sales WHERE sale_date BETWEEN ? AND ?${channelClause} GROUP BY sale_channel ORDER BY total_amount DESC`).bind(...params).all(),
     ]);
     return json({ok:true,data:{from,to,totals:totals||{},daily:daily.results||[],channels:channels.results||[]}});
   }
