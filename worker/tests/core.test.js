@@ -7,7 +7,10 @@ test("all authenticated roles can read site resources", () => {
   assert.equal(canRead("owner", "sales"), true);
   assert.equal(canRead("manager", "customers"), true);
   assert.equal(canRead("employee", "attendance"), true);
-  assert.equal(canRead("employee", "sales"), true);
+  assert.equal(canRead("employee", "sales"), false);
+  assert.equal(canRead("employee", "dashboard"), false);
+  assert.equal(canRead("manager", "users"), false);
+  assert.equal(canRead("owner", "users"), true);
   assert.equal(canRead("employee", "products"), true);
   assert.equal(canRead("unknown", "products"), false);
 });
