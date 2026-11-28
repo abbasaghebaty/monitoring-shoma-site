@@ -15,6 +15,37 @@ function makeKv(initial = {}) {
     async delete(key) { values.delete(key); },
   };
 }
+function makeDb({ user, otpHash = null, telegramId = 123456 } = {}) {
+  let challenge = otpHash ? { otp_hash: otpHash, attempts: 0, expires_at: Math.floor(Date.now()/1000)+300, consumed_at: null } : null;
+  return {
+    prepare(sql) {
+      return {
+        bind(...values) {
+          return {
+            async first() {
+              if (sql.includes("INSERT INTO auth_rate_limits")) return { request_count: 1 };
+              if (sql.includes("SELECT otp_hash")) return challenge;
+              if (sql.includes("UPDATE auth_otp_challenges SET consumed_at")) {
+                if (!challenge || challenge.consumed_at != null || challenge.otp_hash !== values[2] || challenge.expires_at <= values[3] || challenge.attempts >= values[4]) return null;
+                challenge.consumed_at = values[0];
+                return { telegram_id: telegramId };
+              }
+              if (sql.includes("UPDATE auth_otp_challenges SET attempts")) {
+                if (!challenge || challenge.consumed_at != null || challenge.otp_hash !== values[3] || challenge.expires_at <= values[4] || challenge.attempts >= values[5]) return null;
+                challenge.attempts += 1;
+                if (challenge.attempts >= values[0]) challenge.consumed_at = values[1];
+                return { attempts: challenge.attempts };
+              }
+              if (sql.includes("FROM users")) return user;
+              return null;
+            },
+            async run() { return { meta: { changes: 1 } }; },
+          };
+        },
+      };
+    },
+  };
+}
 function verifyRequest() {
   return new Request("https://worker.test/api/v1/auth/verify-otp", {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -23,22 +54,23 @@ function verifyRequest() {
 }
 async function verifyForRole(role) {
   const pepper = "test-pepper";
-  const kv = makeKv({ "otp:123456": JSON.stringify({ hash: await sha256("123456:123456:" + pepper), attempts: 0 }) });
+  const hash = await sha256("123456:123456:" + pepper);
+  const kv = makeKv();
   const env = {
     OTP_PEPPER: pepper, SITE_AUTH_KV: kv,
-    DB: { prepare() { return { bind() { return { async first() {
-      return { telegram_id: 123456, full_name: "Test", username: "test", role, is_active: 1 };
-    } }; } }; } },
+    DB: makeDb({ user: { telegram_id: 123456, full_name: "Test", username: "test", role, is_active: 1 }, otpHash: hash }),
   };
   return { response: await verifyOtp(verifyRequest(), env), kv };
 }
 
-test("all valid roles get the full navigation and dashboard initial page", () => {
-  for (const role of ["owner", "manager", "employee"]) {
+test("navigation and initial page follow the role permission matrix", () => {
+  for (const role of ["owner", "manager"]) {
     assert.equal(isKnownRole(role), true);
     assert.equal(getInitialPage(role), "dashboard");
     assert.deepEqual(getVisibleNavigation(role, NAV), NAV);
   }
+  assert.equal(getInitialPage("employee"), "attendance");
+  assert.deepEqual(getVisibleNavigation("employee", NAV), [NAV[1], NAV[2]]);
 });
 test("unknown roles never receive management navigation or an initial page", () => {
   assert.equal(isKnownRole("admin"), false);
@@ -95,9 +127,7 @@ test("OTP request does not issue a code to an account with an unknown role", asy
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ telegramId: "123456" }),
     }), {
-      DB: { prepare() { return { bind() { return { async first() {
-        return { telegram_id: 123456, full_name: "Test", role: "admin", is_active: 1 };
-      } }; } }; } },
+      DB: makeDb({ user: { telegram_id: 123456, full_name: "Test", role: "admin", is_active: 1 } }),
       SITE_AUTH_KV: kv, OTP_PEPPER: "pepper", BOT_TOKEN: "test-token",
     });
     assert.equal(response.status, 202);
