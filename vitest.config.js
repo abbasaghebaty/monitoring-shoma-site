@@ -13,6 +13,7 @@ export default defineConfig({
           TEST_BASELINE_SQL: read("./worker/migrations/0000_baseline.sql"),
           TEST_AUDIT_MIGRATION_SQL: read("./worker/migrations/0001_product_audit_log.sql"),
           TEST_INVENTORY_MIGRATION_SQL: read("./worker/migrations/0002_inventory_master_data.sql"),
+          TEST_INTEGRITY_MIGRATION_SQL: read("./worker/migrations/0003_attendance_and_auth_integrity.sql"),
         },
       },
     }),
