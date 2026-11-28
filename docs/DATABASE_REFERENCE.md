@@ -245,3 +245,14 @@ PRAGMA foreign_key_check;
 - `docs/D1_COMPATIBILITY.md`
 - `docs/API_CONTRACT.md`
 
+
+
+## Migrationهای جدیدتر از snapshot
+
+این سند snapshot ثبت‌شده از D1 است و با اضافه شدن Migrationهای جدید خودبه‌خود تغییر نمی‌کند. شاخه remediation فایل `0003_attendance_and_auth_integrity.sql` را برای موارد زیر اضافه کرده است:
+
+- یکتایی ورود باز هر کاربر با partial unique index.
+- محدودیت نرخ OTP با کلیدهای هش‌شده.
+- Challengeهای OTP با مصرف یک‌باره و شمارنده تلاش اتمیک.
+
+**این اشیا در snapshot این سند تأیید نشده‌اند و نباید فرض شود در Production وجود دارند.** قبل از Deploy نسخه Worker وابسته به آن‌ها، Migration باید ابتدا در D1 آزمایشی و سپس با تأیید مستقل در محیط واقعی اجرا شود. برای Unique Index، وجود داده‌های قدیمی تکراری باید با Query preflight در `D1_COMPATIBILITY.md` بررسی شود.
