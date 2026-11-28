@@ -4,7 +4,7 @@ import { api } from "./lib/api/endpoints";
 import { setAccessToken, clearAccessToken } from "./lib/api/client";
 import ProductsPage from "./pages/ProductsPage";
 import InventoryWorkspacePage from "./pages/InventoryWorkspacePage";
-import { getInitialPage, getVisibleNavigation, isKnownRole } from "./modules/access";
+import { getInitialPage, getVisibleNavigation, isKnownRole, canManageProducts } from "./modules/access";
 
 const NAV = [
   ["داشبورد", "dashboard", LayoutDashboard], ["مدیریت اجناس", "products", Package],
@@ -116,6 +116,7 @@ export default function App() {
   const [reportData,setReportData] = useState(null);
   const [reportFrom,setReportFrom] = useState(new Date(Date.now()-29*86400000).toISOString().slice(0,10));
   const [reportTo,setReportTo] = useState(new Date().toISOString().slice(0,10));
+  const [apiStatus,setApiStatus] = useState("checking");
   const allowedNav = useMemo(()=>getVisibleNavigation(user?.role,NAV),[user]);
   function handleLogin(nextUser) {
     if (!isKnownRole(nextUser?.role)) { clearAccessToken(); setUser(null); setActive("dashboard"); return; }
@@ -139,6 +140,20 @@ export default function App() {
     finally { setLoading(false); }
   }
   useEffect(()=>{load();},[user,active,refresh,reportFrom,reportTo]);
+  useEffect(()=>{
+    let mounted=true;
+    const check=async()=>{
+      try{
+        const health=await api.health();
+        if(mounted)setApiStatus(health?.database==="connected"?"healthy":"unknown");
+      }catch(error){
+        if(mounted)setApiStatus(error?.status>=500?"server-error":error?.status===0?"unavailable":"unknown");
+      }
+    };
+    check();
+    const timer=setInterval(check,60000);
+    return()=>{mounted=false;clearInterval(timer);};
+  },[]);
   useEffect(()=>{if(active!=="dashboard"){const timer=setTimeout(load,250);return()=>clearTimeout(timer);}},[query]);
   async function logout() { try { await api.logout(); } catch {} clearAccessToken(); setUser(null); setData(null); setRows([]); }
   if (!user || !isKnownRole(user.role)) return <Login onLogin={handleLogin}/>;
@@ -150,12 +165,12 @@ export default function App() {
       <nav><div className="nav-group"><span className="nav-label">بخش‌های پنل</span>{allowedNav.map(([label,key,Icon])=><button key={key} className={"nav-item "+(active===key?"active":"")} onClick={()=>{setActive(key);setMobile(false);setQuery("");}}><Icon size={18}/><span>{label}</span></button>)}</div></nav>
       <div className="sidebar-bottom"><div className="user-card"><div className="user-avatar">{(user.fullName||"؟").slice(0,1)}</div><div><b>{user.fullName}</b><small>{user.role==="owner"?"مالک":user.role==="manager"?"مدیر":"کارمند"}</small></div><button className="icon-button" title="خروج" onClick={logout}><LogOut size={17}/></button></div></div>
     </aside>
-    <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={()=>setMobile(!mobile)}><Menu/></button><div className="breadcrumb">شما <ChevronLeft size={14}/><b>{pageTitle}</b></div><div className="top-actions"><span className="api-indicator">اتصال امن فعال</span><button className="icon-button" onClick={()=>setRefresh(v=>v+1)} title="به‌روزرسانی"><RefreshCw size={17}/></button></div></header>
+    <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={()=>setMobile(!mobile)}><Menu/></button><div className="breadcrumb">شما <ChevronLeft size={14}/><b>{pageTitle}</b></div><div className="top-actions"><span className={"api-indicator api-"+apiStatus} aria-live="polite">{apiStatus==="checking"?"در حال بررسی اتصال":apiStatus==="healthy"?"سرویس متصل و سالم":apiStatus==="unavailable"?"عدم دسترسی به API":apiStatus==="server-error"?"خطای سرور":"وضعیت اتصال نامشخص"}</span><button className="icon-button" onClick={()=>setRefresh(v=>v+1)} title="به‌روزرسانی"><RefreshCw size={17}/></button></div></header>
       <div className="content"><div className="page-title"><div><span className="eyebrow">مدیریت فروشگاه شما</span><h1>{pageTitle}</h1><p>اطلاعات زنده از دیتابیس مرکزی فروشگاه</p></div></div>
         {active==="reports" && <div className="toolbar date-toolbar"><label>از <input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label><label>تا <input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label></div>}
         {active!=="dashboard" && active!=="reports" && active!=="products" && table && <div className="toolbar"><div className="search-box"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجو..."/></div></div>}
         {active!=="products" && <State loading={loading} error={error} empty={!loading&&!error&&(active==="dashboard"?!data:active==="reports"?!reportData:rows.length===0)} onRetry={()=>setRefresh(v=>v+1)}/>}
-        {active==="products" && <ProductsPage canManage={isKnownRole(user.role)}/> }
+        {active==="products" && <ProductsPage canManage={canManageProducts(user.role)}/> }
         {active==="inventory-workspace" && <InventoryWorkspacePage onNavigate={setActive}/> }
         {!loading&&!error&&active==="dashboard"&&data&&<Dashboard data={data}/>}
         {!loading&&!error&&active!=="products"&&table&&rows.length>0&&<Table columns={table.columns} rows={rows}/>}
