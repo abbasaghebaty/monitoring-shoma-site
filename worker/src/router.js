@@ -3,6 +3,7 @@ import { authRoutes } from "./routes/auth.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { resourceRoutes } from "./routes/resources.js";
 import { productWriteRoutes } from "./routes/products.js";
+import { inventoryWorkspaceRoutes } from "./routes/inventory-workspace.js";
 import { domainWriteRoutes, userReadRoutes } from "./routes/domain-write.js";
 import { requireSession } from "./middleware/auth.js";
 export async function router(request,env,context=null){
@@ -12,8 +13,9 @@ export async function router(request,env,context=null){
  if(!url.pathname.startsWith("/api/v1/"))return json({ok:false,error:{code:"NOT_FOUND",message:"مسیر پیدا نشد"}},404);
  const access=await requireSession(request,env);if(access.response)return access.response;
  const productWrite=await productWriteRoutes(request,env,url,access.user,context);if(productWrite)return productWrite;
+ const inventoryWorkspace=await inventoryWorkspaceRoutes(request,env,url,access.user,context);if(inventoryWorkspace)return inventoryWorkspace;
  const domainWrite=await domainWriteRoutes(request,env,url,access.user);if(domainWrite)return domainWrite;
- const users=await userReadRoutes(request,env,url);if(users)return users;
+ const users=await userReadRoutes(request,env,url,access.user);if(users)return users;
  if(request.method!=="GET")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"روش درخواست برای این مسیر پشتیبانی نمی‌شود."}},405);
  const dashboard=await dashboardRoutes(request,env,url,access.user);if(dashboard)return dashboard;
  const resource=await resourceRoutes(request,env,url,access.user);if(resource)return resource;
