@@ -183,6 +183,8 @@ export async function requestOtp(request, env, context = null) {
 
   try {
     setStage(context, "otp_storage");
+    // Invalidate any challenge issued by the previous KV-backed implementation.
+    await env.SITE_AUTH_KV.delete(`otp:${telegramId}`);
     await env.DB.prepare(`
       INSERT INTO auth_otp_challenges (telegram_id, otp_hash, attempts, created_at, expires_at, consumed_at)
       VALUES (?, ?, 0, ?, ?, NULL)
