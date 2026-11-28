@@ -61,5 +61,8 @@ export async function resourceRoutes(request, env, url, user) {
   if (resource === "products" && user.role === "employee") {
     data.items = (data.items || []).map(hideCostFields);
   }
+  if (resource === "inventory" && user.role === "employee") {
+    data.items = (data.items || []).map(({ purchase_price, ...safe }) => safe);
+  }
   return json({ ok:true, data });
 }
