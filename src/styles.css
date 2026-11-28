@@ -59,3 +59,7 @@
 
 /* Keep the product creation action visibly styled in the toolbar. */
 .product-add-button{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:38px}
+
+.api-indicator.api-checking,.api-indicator.api-unknown{color:#d8c58a;background:#403821}
+.api-indicator.api-healthy{color:#6bc5a0;background:#1c3b35}
+.api-indicator.api-unavailable,.api-indicator.api-server-error{color:#f0a1a1;background:#442b32}

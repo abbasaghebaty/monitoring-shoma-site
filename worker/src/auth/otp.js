@@ -90,6 +90,29 @@ async function safeDeleteOtp(env, key, context) {
   }
 }
 
+async function consumeRateLimit(db, keyHash, now, windowSeconds, maxRequests) {
+  const row = await db.prepare(`
+    INSERT INTO auth_rate_limits (key_hash, window_started_at, request_count, updated_at)
+    VALUES (?, ?, 1, ?)
+    ON CONFLICT(key_hash) DO UPDATE SET
+      request_count = CASE
+        WHEN excluded.updated_at - auth_rate_limits.window_started_at >= ? THEN 1
+        ELSE auth_rate_limits.request_count + 1
+      END,
+      window_started_at = CASE
+        WHEN excluded.updated_at - auth_rate_limits.window_started_at >= ? THEN excluded.updated_at
+        ELSE auth_rate_limits.window_started_at
+      END,
+      updated_at = excluded.updated_at
+    WHERE excluded.updated_at - auth_rate_limits.window_started_at >= ?
+       OR auth_rate_limits.request_count < ?
+    RETURNING request_count
+  `).bind(
+    keyHash, now, now, windowSeconds, windowSeconds, windowSeconds, maxRequests
+  ).first();
+  return Boolean(row);
+}
+
 export async function requestOtp(request, env, context = null) {
   setStage(context, "otp_request_received");
   logEvent(context, "info", "OTP_REQUEST_RECEIVED");
@@ -97,36 +120,39 @@ export async function requestOtp(request, env, context = null) {
   const body = await request.json().catch(() => ({}));
   const telegramId = String(body.telegramId || "").trim();
   if (!/^\d{5,15}$/.test(telegramId)) {
-    return errorResponse({
-      errorCode: "AUTH_003",
-      status: 400,
-      message: "شناسه تلگرام معتبر نیست.",
-    });
+    return errorResponse({ errorCode: "AUTH_003", status: 400, message: "شناسه تلگرام معتبر نیست." });
   }
 
   setStage(context, "configuration_validation");
   const missing = missingConfig(env, true);
   if (missing.length) return configFailure(context, missing);
-  logEvent(context, "info", "OTP_CONFIG_OK", { dependencyStatus: "configured" });
 
-  const cooldownKey = `otp-cooldown:${telegramId}`;
-  let isCoolingDown;
+  const now = Math.floor(Date.now() / 1000);
+  let code;
+  let otpHash;
   try {
-    setStage(context, "rate_limit_lookup");
-    isCoolingDown = Boolean(await env.SITE_AUTH_KV.get(cooldownKey));
+    setStage(context, "rate_limit_reservation");
+    // Rate-limit keys are one-way hashes; raw Telegram IDs and IP addresses are not stored.
+    const accountKey = await sha256(`otp-account:${telegramId}:${env.OTP_PEPPER}`);
+    const accountAllowed = await consumeRateLimit(env.DB, accountKey, now, RESEND_SECONDS, 1);
+    const ipAddress = request.headers.get("CF-Connecting-IP");
+    let ipAllowed = true;
+    if (ipAddress) {
+      const ipKey = await sha256(`otp-ip:${ipAddress}:${env.OTP_PEPPER}`);
+      ipAllowed = await consumeRateLimit(env.DB, ipKey, now, 15 * 60, 12);
+    }
+    await env.DB.prepare("DELETE FROM auth_rate_limits WHERE updated_at < ?").bind(now - 86400).run();
+    await env.DB.prepare(
+      "DELETE FROM auth_otp_challenges WHERE expires_at < ? OR (consumed_at IS NOT NULL AND consumed_at < ?)"
+    ).bind(now - 86400, now - 86400).run();
+    if (!accountAllowed || !ipAllowed) {
+      logEvent(context, "warn", "OTP_RATE_LIMITED", { outcome: "generic_response" });
+      return publicOtpOutcome();
+    }
   } catch (error) {
-    logOtpFailure(context, AUTH_ERRORS.KV_UNAVAILABLE.errorCode, "rate_limit_lookup", error, "KV");
-    return errorResponse(AUTH_ERRORS.KV_UNAVAILABLE);
+    logOtpFailure(context, AUTH_ERRORS.DB_QUERY_FAILED.errorCode, "rate_limit_reservation", error, "D1");
+    return errorResponse(AUTH_ERRORS.DB_QUERY_FAILED);
   }
-
-  if (isCoolingDown) {
-    logEvent(context, "warn", "OTP_RATE_LIMITED", {
-      errorCode: AUTH_ERRORS.OTP_RATE_LIMITED.errorCode,
-      outcome: "generic_response",
-    });
-    return publicOtpOutcome();
-  }
-  logEvent(context, "info", "OTP_COOLDOWN_CLEAR");
 
   let user;
   try {
@@ -141,41 +167,43 @@ export async function requestOtp(request, env, context = null) {
 
   const isActive = Boolean(user && Number(user.is_active) === 1);
   logEvent(context, "info", "OTP_USER_LOOKUP", { found: Boolean(user), active: isActive });
-
-  // Do not reveal whether a Telegram ID exists or is active to the caller.
-  if (!user) {
-    logEvent(context, "warn", "AUTH_USER_NOT_FOUND", { errorCode: "AUTH_001" });
-    return publicOtpOutcome();
-  }
-  if (!isActive) {
-    logEvent(context, "warn", "AUTH_USER_INACTIVE", { errorCode: "AUTH_002" });
-    return publicOtpOutcome();
-  }
-  if (!isValidRole(user.role)) {
-    logEvent(context, "warn", "AUTH_ROLE_REJECTED", { errorCode: "AUTH_ROLE_INVALID" });
+  if (!user || !isActive || !isValidRole(user.role)) {
+    logEvent(context, "warn", "OTP_USER_UNAVAILABLE", { outcome: "generic_response" });
     return publicOtpOutcome();
   }
 
-  let code;
-  let record;
   try {
     setStage(context, "otp_generation");
     code = randomOtp();
-    record = {
-      hash: await sha256(`${telegramId}:${code}:${env.OTP_PEPPER}`),
-      attempts: 0,
-    };
+    otpHash = await sha256(`${telegramId}:${code}:${env.OTP_PEPPER}`);
   } catch (error) {
     logOtpFailure(context, AUTH_ERRORS.OTP_GENERATION_FAILED.errorCode, "otp_generation", error, "WebCrypto");
     return publicOtpOutcome();
   }
 
-  const otpKey = `otp:${telegramId}`;
+  try {
+    setStage(context, "legacy_otp_invalidation");
+    // Invalidate any challenge issued by the previous KV-backed implementation.
+    await env.SITE_AUTH_KV.delete(`otp:${telegramId}`);
+  } catch (error) {
+    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "legacy_otp_invalidation", error, "KV");
+    return publicOtpOutcome();
+  }
+
   try {
     setStage(context, "otp_storage");
-    await env.SITE_AUTH_KV.put(otpKey, JSON.stringify(record), { expirationTtl: OTP_TTL });
+    await env.DB.prepare(`
+      INSERT INTO auth_otp_challenges (telegram_id, otp_hash, attempts, created_at, expires_at, consumed_at)
+      VALUES (?, ?, 0, ?, ?, NULL)
+      ON CONFLICT(telegram_id) DO UPDATE SET
+        otp_hash=excluded.otp_hash,
+        attempts=0,
+        created_at=excluded.created_at,
+        expires_at=excluded.expires_at,
+        consumed_at=NULL
+    `).bind(Number(telegramId), otpHash, now, now + OTP_TTL).run();
   } catch (error) {
-    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_storage", error, "KV");
+    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_storage", error, "D1");
     return publicOtpOutcome();
   }
 
@@ -189,9 +217,12 @@ export async function requestOtp(request, env, context = null) {
     );
     logEvent(context, "info", "OTP_TELEGRAM_SEND_OK", { dependencyStatus: "accepted" });
   } catch (error) {
-    await safeDeleteOtp(env, otpKey, context);
-    await safeDeleteOtp(env, cooldownKey, context);
-
+    try {
+      await env.DB.prepare("DELETE FROM auth_otp_challenges WHERE telegram_id=? AND otp_hash=?")
+        .bind(Number(telegramId), otpHash).run();
+    } catch (cleanupError) {
+      logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_cleanup", cleanupError, "D1");
+    }
     const chatUnavailable = /chat not found|bot was blocked by the user|user is deactivated|can't initiate conversation/i
       .test(error.telegramDescription || error.message || "");
     const errorCode = error.code === "NETWORK_FAILED"
@@ -199,7 +230,6 @@ export async function requestOtp(request, env, context = null) {
       : chatUnavailable
         ? AUTH_ERRORS.TELEGRAM_CHAT_UNAVAILABLE.errorCode
         : AUTH_ERRORS.TELEGRAM_DELIVERY_FAILED.errorCode;
-
     logOtpFailure(context, errorCode, "telegram_delivery", error, "Telegram Bot API", {
       httpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : null,
       telegramErrorCode: Number.isInteger(error.telegramErrorCode) ? error.telegramErrorCode : null,
@@ -208,22 +238,8 @@ export async function requestOtp(request, env, context = null) {
         : null,
       retryAfter: Number.isInteger(error.retryAfter) ? error.retryAfter : null,
     });
-    logEvent(context, "error", "OTP_DELIVERY_FAILED", {
-      errorCode,
-      dependency: "Telegram Bot API",
-      dependencyStatus: error.code === "NETWORK_FAILED" ? "no_response" : "rejected",
-    });
-
-    // Preserve identical public behavior for unknown/inactive accounts and delivery failures.
+    logEvent(context, "error", "OTP_DELIVERY_FAILED", { errorCode, dependency: "Telegram Bot API" });
     return publicOtpOutcome();
-  }
-
-  try {
-    setStage(context, "cooldown_storage");
-    await env.SITE_AUTH_KV.put(cooldownKey, "1", { expirationTtl: RESEND_SECONDS });
-  } catch (error) {
-    // Telegram has already accepted the message; keep the OTP valid and report this internally.
-    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "cooldown_storage", error, "KV");
   }
 
   logEvent(context, "info", "OTP_REQUEST_COMPLETED", { outcome: "delivery_accepted" });
@@ -245,34 +261,7 @@ export async function verifyOtp(request, env, context = null) {
   if (missing.length) return configFailure(context, missing);
 
   const key = `otp:${telegramId}`;
-  let raw;
-  try {
-    setStage(context, "otp_lookup");
-    raw = await env.SITE_AUTH_KV.get(key);
-  } catch (error) {
-    logOtpFailure(context, AUTH_ERRORS.KV_UNAVAILABLE.errorCode, "otp_lookup", error, "KV");
-    return errorResponse(AUTH_ERRORS.KV_UNAVAILABLE);
-  }
-  if (!raw) {
-    logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "missing_or_expired" });
-    return errorResponse(AUTH_ERRORS.OTP_INVALID);
-  }
-
-  let record;
-  try {
-    record = JSON.parse(raw);
-    if (!record || typeof record.hash !== "string" || !Number.isInteger(record.attempts)) throw new Error("Invalid OTP record");
-  } catch (error) {
-    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_record_parse", error, "KV");
-    await safeDeleteOtp(env, key, context);
-    return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
-  }
-
-  if (record.attempts >= MAX_ATTEMPTS) {
-    await safeDeleteOtp(env, key, context);
-    return errorResponse(AUTH_ERRORS.OTP_INVALID);
-  }
-
+  const now = Math.floor(Date.now() / 1000);
   let expected;
   try {
     setStage(context, "otp_verification");
@@ -282,16 +271,87 @@ export async function verifyOtp(request, env, context = null) {
     return errorResponse(AUTH_ERRORS.OTP_GENERATION_FAILED);
   }
 
-  if (expected !== record.hash) {
-    record.attempts += 1;
+  let challenge;
+  try {
+    setStage(context, "otp_lookup");
+    challenge = await env.DB.prepare(
+      "SELECT otp_hash, attempts, expires_at, consumed_at FROM auth_otp_challenges WHERE telegram_id=?"
+    ).bind(Number(telegramId)).first();
+  } catch (error) {
+    logOtpFailure(context, AUTH_ERRORS.DB_QUERY_FAILED.errorCode, "otp_lookup", error, "D1");
+    return errorResponse(AUTH_ERRORS.DB_QUERY_FAILED);
+  }
+
+  let legacyKvChallenge = false;
+  if (challenge) {
+    if (challenge.consumed_at != null || Number(challenge.expires_at) <= now || Number(challenge.attempts) >= MAX_ATTEMPTS) {
+      logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "expired_or_consumed" });
+      return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    }
+
+    if (expected === challenge.otp_hash) {
+      let consumed;
+      try {
+        consumed = await env.DB.prepare(
+          "UPDATE auth_otp_challenges SET consumed_at=? WHERE telegram_id=? AND otp_hash=? AND consumed_at IS NULL AND expires_at>? AND attempts<? RETURNING telegram_id"
+        ).bind(now, Number(telegramId), expected, now, MAX_ATTEMPTS).first();
+      } catch (error) {
+        logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_consume", error, "D1");
+        return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+      }
+      if (!consumed) return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    } else {
+      let attempt;
+      try {
+        attempt = await env.DB.prepare(
+          "UPDATE auth_otp_challenges SET attempts=attempts+1, consumed_at=CASE WHEN attempts+1>=? THEN ? ELSE consumed_at END WHERE telegram_id=? AND otp_hash=? AND consumed_at IS NULL AND expires_at>? AND attempts<? RETURNING attempts"
+        ).bind(MAX_ATTEMPTS, now, Number(telegramId), challenge.otp_hash, now, MAX_ATTEMPTS).first();
+      } catch (error) {
+        logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_attempt_update", error, "D1");
+        return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+      }
+      logEvent(context, "warn", "OTP_VERIFY_REJECTED", {
+        errorCode: AUTH_ERRORS.OTP_INVALID.errorCode,
+        reason: attempt && Number(attempt.attempts) >= MAX_ATTEMPTS ? "attempt_limit" : "mismatch",
+      });
+      return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    }
+  } else {
+    // Compatibility window for OTPs issued by the previous Worker version.
+    let raw;
     try {
-      await env.SITE_AUTH_KV.put(key, JSON.stringify(record), { expirationTtl: OTP_TTL });
+      raw = await env.SITE_AUTH_KV.get(key);
     } catch (error) {
-      logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_attempt_update", error, "KV");
+      logOtpFailure(context, AUTH_ERRORS.KV_UNAVAILABLE.errorCode, "legacy_otp_lookup", error, "KV");
+      return errorResponse(AUTH_ERRORS.KV_UNAVAILABLE);
+    }
+    if (!raw) return errorResponse(AUTH_ERRORS.OTP_INVALID);
+
+    let record;
+    try {
+      record = JSON.parse(raw);
+      if (!record || typeof record.hash !== "string" || !Number.isInteger(record.attempts)) throw new Error("Invalid OTP record");
+    } catch (error) {
+      logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "legacy_otp_parse", error, "KV");
+      await safeDeleteOtp(env, key, context);
       return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
     }
-    logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "mismatch" });
-    return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    if (record.attempts >= MAX_ATTEMPTS) {
+      await safeDeleteOtp(env, key, context);
+      return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    }
+    if (expected !== record.hash) {
+      record.attempts += 1;
+      try {
+        await env.SITE_AUTH_KV.put(key, JSON.stringify(record), { expirationTtl: OTP_TTL });
+      } catch (error) {
+        logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "legacy_otp_attempt_update", error, "KV");
+        return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+      }
+      logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "legacy_mismatch" });
+      return errorResponse(AUTH_ERRORS.OTP_INVALID);
+    }
+    legacyKvChallenge = true;
   }
 
   let user;
@@ -305,23 +365,19 @@ export async function verifyOtp(request, env, context = null) {
     return errorResponse(AUTH_ERRORS.DB_QUERY_FAILED);
   }
 
-  if (!user || Number(user.is_active) !== 1) {
-    await safeDeleteOtp(env, key, context);
+  if (!user || Number(user.is_active) !== 1 || !isValidRole(user.role)) {
+    if (legacyKvChallenge) await safeDeleteOtp(env, key, context);
     logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "user_unavailable" });
     return errorResponse(AUTH_ERRORS.OTP_INVALID);
   }
-  if (!isValidRole(user.role)) {
-    await safeDeleteOtp(env, key, context);
-    logEvent(context, "warn", "OTP_VERIFY_REJECTED", { errorCode: AUTH_ERRORS.OTP_INVALID.errorCode, reason: "invalid_role" });
-    return errorResponse(AUTH_ERRORS.OTP_INVALID);
-  }
 
-  try {
-    setStage(context, "otp_consume");
-    await env.SITE_AUTH_KV.delete(key);
-  } catch (error) {
-    logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "otp_consume", error, "KV");
-    return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+  if (legacyKvChallenge) {
+    try {
+      await env.SITE_AUTH_KV.delete(key);
+    } catch (error) {
+      logOtpFailure(context, AUTH_ERRORS.OTP_STORAGE_FAILED.errorCode, "legacy_otp_consume", error, "KV");
+      return errorResponse(AUTH_ERRORS.OTP_STORAGE_FAILED);
+    }
   }
 
   try {
@@ -335,12 +391,7 @@ export async function verifyOtp(request, env, context = null) {
       ok: true,
       data: {
         token,
-        user: {
-          telegramId: user.telegram_id,
-          fullName: user.full_name,
-          username: user.username,
-          role: user.role,
-        },
+        user: { telegramId: user.telegram_id, fullName: user.full_name, username: user.username, role: user.role },
       },
     });
   } catch (error) {

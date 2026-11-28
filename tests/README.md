@@ -7,6 +7,8 @@
 ترتیب canonical:
 1. worker/migrations/0000_baseline.sql
 2. worker/migrations/0001_product_audit_log.sql
+3. worker/migrations/0002_inventory_master_data.sql
+4. worker/migrations/0003_attendance_and_auth_integrity.sql
 
 ## فرمان‌ها
 
@@ -26,6 +28,9 @@
 - Audit create/update، JSON constraints و immutable بودن
 - rollback batch و failure guard
 - هم‌زمانی دو درخواست با Snapshot یکسان و پاسخ 409 برای بازنده
+- محدودیت یکتای ورود باز و هم‌زمانی check-in
+- ماتریس Permission نقش‌ها
+- سازگاری مجموع، داده روزانه و توزیع کانال در گزارش فروش
 
 ## مرز تست
 

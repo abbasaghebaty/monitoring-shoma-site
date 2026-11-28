@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import {
   createProduct,
@@ -8,6 +8,11 @@ import {
   ProductConflictError,
 } from "../worker/src/repositories/products.js";
 import { productWriteRoutes } from "../worker/src/routes/products.js";
+import { domainWriteRoutes, userReadRoutes } from "../worker/src/routes/domain-write.js";
+import { resourceRoutes } from "../worker/src/routes/resources.js";
+import { canRead, canManage } from "../worker/src/auth/permissions.js";
+import { requestOtp, verifyOtp } from "../worker/src/auth/otp.js";
+import { sha256 } from "../worker/src/auth/crypto.js";
 import { listInventory } from "../worker/src/repositories/inventory.js";
 import { listSales } from "../worker/src/repositories/sales.js";
 import { listDebts } from "../worker/src/repositories/debts.js";
@@ -71,6 +76,7 @@ beforeAll(async () => {
   await applyStatements(env.TEST_BASELINE_SQL);
   await applyStatements(env.TEST_AUDIT_MIGRATION_SQL);
   await applyStatements(env.TEST_INVENTORY_MIGRATION_SQL);
+  await applyStatements(env.TEST_INTEGRITY_MIGRATION_SQL);
   await env.DB.prepare(
     "INSERT INTO users (telegram_id, full_name, role, is_active) VALUES (?, ?, 'manager', 1)"
   ).bind(actorTelegramId, "D1 Integration Manager").run();
@@ -119,7 +125,7 @@ describe("Cloudflare D1 runtime product integrity", () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
     ).all();
     expect(tables.results.map((row) => row.name)).toEqual([
-      "attendance", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
+      "attendance", "auth_otp_challenges", "auth_rate_limits", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
       "product_brands", "product_categories", "product_prices", "products", "sales", "users", "warehouse_locations", "warehouses",
     ]);
 
@@ -321,7 +327,7 @@ describe("inventory workspace master-data D1 integration", () => {
     const audit = await env.DB.prepare("SELECT COUNT(*) count FROM inventory_workspace_audit WHERE entity_id=?").bind(brand.id).first();
     expect(Number(audit.count)).toBe(2);
   });
-  it("allows all valid roles to manage master data and rejects unknown roles", async () => {
+  it("restricts master-data writes to manager and owner roles", async () => {
     const url = new URL("https://worker.test/api/v1/inventory-workspace/brands");
     const makeRequest = (name) => new Request(url, {
       method: "POST",
@@ -345,7 +351,7 @@ describe("inventory workspace master-data D1 integration", () => {
       { telegram_id: actorTelegramId, role: "employee" },
       { requestId: id("employee-create") },
     );
-    expect(employeeCreated.status).toBe(201);
+    expect(employeeCreated.status).toBe(403);
 
     const managerCreated = await inventoryWorkspaceRoutes(
       makeRequest("Manager brand"),
@@ -357,8 +363,206 @@ describe("inventory workspace master-data D1 integration", () => {
     expect(managerCreated.status).toBe(201);
 
     const listed = await listInventoryEntity(env.DB, "brands", url);
-    expect(listed.items.some((item) => item.name === "Employee brand")).toBe(true);
+    expect(listed.items.some((item) => item.name === "Employee brand")).toBe(false);
     expect(listed.items.some((item) => item.name === "Manager brand")).toBe(true);
     expect(listed.items.some((item) => item.name === "Invalid role brand")).toBe(false);
+  });
+});
+
+
+describe("role permissions and operational concurrency", () => {
+  it("applies the documented role matrix at the permission layer", () => {
+    expect(canRead("owner", "users")).toBe(true);
+    expect(canManage("owner", "products")).toBe(true);
+    expect(canRead("manager", "sales")).toBe(true);
+    expect(canRead("manager", "users")).toBe(false);
+    expect(canManage("manager", "inventoryWorkspace")).toBe(true);
+    expect(canRead("employee", "attendance")).toBe(true);
+    expect(canRead("employee", "sales")).toBe(false);
+    expect(canRead("employee", "debts")).toBe(false);
+    expect(canManage("employee", "products")).toBe(false);
+    expect(canManage("employee", "attendance")).toBe(true);
+  });
+
+  it("allows only one open attendance row during simultaneous check-in requests", async () => {
+    await env.DB.prepare("UPDATE attendance SET check_out=datetime('now') WHERE telegram_id=? AND check_out IS NULL").bind(actorTelegramId).run();
+    const url = new URL("https://worker.test/api/v1/attendance/check-in");
+    const makeRequest = () => new Request(url, { method: "POST" });
+    const responses = await Promise.all([
+      domainWriteRoutes(makeRequest(), { DB: env.DB }, url, manager),
+      domainWriteRoutes(makeRequest(), { DB: env.DB }, url, manager),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    const open = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM attendance WHERE telegram_id=? AND check_out IS NULL"
+    ).bind(actorTelegramId).first();
+    expect(Number(open.count)).toBe(1);
+  });
+
+
+
+  it("denies employee access to financial dashboards and reports", async () => {
+    const summaryUrl = new URL("https://worker.test/api/v1/dashboard/summary");
+    const summary = await dashboardRoutes(new Request(summaryUrl), { DB: env.DB }, summaryUrl, { ...manager, role: "employee" });
+    expect(summary.status).toBe(403);
+    const reportUrl = new URL("https://worker.test/api/v1/reports/sales?from=2026-11-01&to=2026-11-30");
+    const report = await dashboardRoutes(new Request(reportUrl), { DB: env.DB }, reportUrl, { ...manager, role: "employee" });
+    expect(report.status).toBe(403);
+  });
+
+
+  it("enforces employee resource scope and removes management price fields", async () => {
+    const employeeId = 7001002;
+    await env.DB.prepare("INSERT INTO users (telegram_id,full_name,role,is_active) VALUES (?,?,?,1)")
+      .bind(employeeId,"Employee Scope","employee").run();
+    const employee = { telegram_id: employeeId, role: "employee" };
+    const productId = id("EMPLOYEE-SCOPE");
+    const productName = "Employee Scope Product " + productId;
+    await createProduct(env.DB,{product_id:productId,name:productName,purchase_price:7,sell_price:12,consumer_price:14,market_price:13},context(id("employee-scope-create")));
+
+    const productsUrl = new URL("https://worker.test/api/v1/products?q="+encodeURIComponent(productId));
+    const productsResponse = await resourceRoutes(new Request(productsUrl),{DB:env.DB},productsUrl,employee);
+    const product = (await productsResponse.json()).data.items[0];
+    expect(product.sell_price).toBe(12);
+    expect(product.purchase_price).toBeUndefined();
+    expect(product.consumer_price).toBeUndefined();
+    expect(product.market_price).toBeUndefined();
+
+    const inventoryUrl = new URL("https://worker.test/api/v1/inventory?q="+encodeURIComponent(productName));
+    const inventoryResponse = await resourceRoutes(new Request(inventoryUrl),{DB:env.DB},inventoryUrl,employee);
+    const inventory = (await inventoryResponse.json()).data.items[0];
+    expect(inventory.purchase_price).toBeUndefined();
+    expect(inventory.consumer_price).toBeUndefined();
+    expect(inventory.market_price).toBeUndefined();
+
+    for (const path of ["/api/v1/product-prices","/api/v1/sales","/api/v1/debts"]) {
+      const url = new URL("https://worker.test"+path);
+      const response = await resourceRoutes(new Request(url),{DB:env.DB},url,employee);
+      expect(response.status).toBe(403);
+    }
+
+    await env.DB.prepare("INSERT INTO attendance (telegram_id,check_in,check_out,duration_minutes) VALUES (?,?,?,?)")
+      .bind(actorTelegramId,"2026-11-20 08:00:00","2026-11-20 16:00:00",480).run();
+    await env.DB.prepare("INSERT INTO attendance (telegram_id,check_in,check_out,duration_minutes) VALUES (?,?,?,?)")
+      .bind(employeeId,"2026-11-21 08:00:00","2026-11-21 16:00:00",480).run();
+    const attendanceUrl = new URL("https://worker.test/api/v1/attendance");
+    const attendanceResponse = await resourceRoutes(new Request(attendanceUrl),{DB:env.DB},attendanceUrl,employee);
+    const attendance = (await attendanceResponse.json()).data.items;
+    expect(attendance.length).toBeGreaterThan(0);
+    expect(attendance.every(row=>row.telegram_id===employeeId)).toBe(true);
+
+    const usersUrl = new URL("https://worker.test/api/v1/users");
+    const usersResponse = await userReadRoutes(new Request(usersUrl),{DB:env.DB},usersUrl,manager);
+    expect(usersResponse.status).toBe(403);
+  });
+
+  it("keeps all sales report sections consistent with a selected channel", async () => {
+    const productId = id("D1-CHANNEL-FILTER");
+    await createProduct(env.DB, { product_id: productId, name: "channel filter", sell_price: 10, purchase_price: 4 }, context(id("channel-create")));
+    await env.DB.prepare("UPDATE inventory SET quantity=10 WHERE product_id=?").bind(productId).run();
+    await env.DB.prepare(
+      "INSERT INTO sales (product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(productId,2,"2026-11-22","10:00:00","in_store",4,10,12,20,"cash").run();
+    await env.DB.prepare(
+      "INSERT INTO sales (product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(productId,1,"2026-11-22","11:00:00","online",4,10,12,10,"cash").run();
+
+    const url = new URL("https://worker.test/api/v1/reports/sales?from=2026-11-01&to=2026-11-30&channel=in_store");
+    const response = await dashboardRoutes(new Request(url), { DB: env.DB }, url, manager);
+    const data = (await response.json()).data;
+    expect(data.channels).toHaveLength(1);
+    expect(data.channels[0].sale_channel).toBe("in_store");
+    expect(Number(data.channels[0].total_amount)).toBe(Number(data.totals.total_amount));
+    expect(data.daily.reduce((sum, row) => sum + Number(row.total_amount), 0)).toBe(Number(data.totals.total_amount));
+  });
+});
+
+
+describe("OTP one-time verification integrity", () => {
+  it("allows exactly one successful verification for concurrent requests", async () => {
+    const pepper = "isolated-test-pepper";
+    const code = "123456";
+    const now = Math.floor(Date.now() / 1000);
+    const hash = await sha256(`${actorTelegramId}:${code}:${pepper}`);
+    await env.DB.prepare(
+      "INSERT INTO auth_otp_challenges (telegram_id,otp_hash,attempts,created_at,expires_at,consumed_at) VALUES (?,?,0,?,?,NULL) ON CONFLICT(telegram_id) DO UPDATE SET otp_hash=excluded.otp_hash,attempts=0,created_at=excluded.created_at,expires_at=excluded.expires_at,consumed_at=NULL"
+    ).bind(actorTelegramId,hash,now,now+300).run();
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper };
+    const request = () => new Request("https://worker.test/api/v1/auth/verify-otp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId: String(actorTelegramId), code }),
+    });
+    const responses = await Promise.all([verifyOtp(request(),testEnv),verifyOtp(request(),testEnv)]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200,401]);
+    const challenge = await env.DB.prepare("SELECT consumed_at FROM auth_otp_challenges WHERE telegram_id=?").bind(actorTelegramId).first();
+    expect(challenge.consumed_at).not.toBeNull();
+  });
+
+  it("atomically counts failed attempts and consumes a challenge at the limit", async () => {
+    const pepper = "isolated-test-pepper-2";
+    const now = Math.floor(Date.now() / 1000);
+    const hash = await sha256(`${actorTelegramId}:654321:${pepper}`);
+    await env.DB.prepare(
+      "INSERT INTO auth_otp_challenges (telegram_id,otp_hash,attempts,created_at,expires_at,consumed_at) VALUES (?,?,0,?,?,NULL) ON CONFLICT(telegram_id) DO UPDATE SET otp_hash=excluded.otp_hash,attempts=0,created_at=excluded.created_at,expires_at=excluded.expires_at,consumed_at=NULL"
+    ).bind(actorTelegramId,hash,now,now+300).run();
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper };
+    for (let attempt=0; attempt<5; attempt++) {
+      const response = await verifyOtp(new Request("https://worker.test/api/v1/auth/verify-otp", {
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({telegramId:String(actorTelegramId),code:"000000"}),
+      }),testEnv);
+      expect(response.status).toBe(401);
+    }
+    const challenge = await env.DB.prepare("SELECT attempts,consumed_at FROM auth_otp_challenges WHERE telegram_id=?").bind(actorTelegramId).first();
+    expect(challenge.attempts).toBe(5);
+    expect(challenge.consumed_at).not.toBeNull();
+  });
+});
+
+
+describe("OTP request rate-limit reservation", () => {
+
+  it("limits OTP requests per source IP across distinct account IDs", async () => {
+    const pepper = "isolated-ip-rate-limit-pepper";
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper, BOT_TOKEN: "test-token" };
+    const responses = await Promise.all(Array.from({length:13},(_,index)=>{
+      const request = new Request("https://worker.test/api/v1/auth/request-otp",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","CF-Connecting-IP":"203.0.113.29"},
+        body:JSON.stringify({telegramId:String(8100000+index)}),
+      });
+      return requestOtp(request,testEnv);
+    }));
+    expect(responses.every(response=>response.status===202)).toBe(true);
+    const ipKey = await sha256("otp-ip:203.0.113.29:"+pepper);
+    const rate = await env.DB.prepare("SELECT request_count FROM auth_rate_limits WHERE key_hash=?").bind(ipKey).first();
+    expect(rate.request_count).toBe(12);
+  });
+
+  it("allows only one concurrent OTP send for the same Telegram account", async () => {
+    const pepper = "isolated-rate-limit-pepper";
+    const send = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 }));
+    vi.stubGlobal("fetch", send);
+    try {
+      const testEnv = {
+        DB: env.DB,
+        SITE_AUTH_KV: env.SITE_AUTH_KV,
+        OTP_PEPPER: pepper,
+        BOT_TOKEN: "test-token-not-used-outside-this-isolated-mock",
+      };
+      const request = () => new Request("https://worker.test/api/v1/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.18" },
+        body: JSON.stringify({ telegramId: String(actorTelegramId) }),
+      });
+      const responses = await Promise.all([requestOtp(request(),testEnv),requestOtp(request(),testEnv)]);
+      expect(responses.map((response) => response.status)).toEqual([202,202]);
+      expect(send).toHaveBeenCalledTimes(1);
+      const accountKey = await sha256(`otp-account:${actorTelegramId}:${pepper}`);
+      const rate = await env.DB.prepare("SELECT request_count FROM auth_rate_limits WHERE key_hash=?").bind(accountKey).first();
+      expect(rate.request_count).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

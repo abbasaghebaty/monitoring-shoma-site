@@ -99,9 +99,9 @@ export async function listInventoryEntity(db, key, url) {
   const { limit, offset } = parsePagination(url);
   const search = (url.searchParams.get("q") || "").trim().slice(0, 100);
   const where = search
-    ? " WHERE (" + config.search.map((field) => field + " LIKE ?").join(" OR ") + ")"
+    ? " WHERE (" + config.search.map((field) => "instr(lower(" + field + "),lower(?))>0").join(" OR ") + ")"
     : "";
-  const params = search ? config.search.map(() => "%" + search + "%") : [];
+  const params = search ? config.search.map(() => search) : [];
   const rows = await db.prepare(
     config.select + where + " ORDER BY " + config.order + " LIMIT ? OFFSET ?"
   ).bind(...params, limit, offset).all();

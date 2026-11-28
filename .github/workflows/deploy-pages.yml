@@ -14,6 +14,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,7 +26,13 @@ jobs:
       - name: Update npm to a peer-resolution version supported by the Node 22 runner
         run: npm install --global npm@11.21.2
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+      - name: Install Worker dependencies
+        run: npm --prefix worker ci
+      - name: Audit dependency vulnerabilities
+        run: |
+          npm audit --audit-level=high
+          npm --prefix worker audit --audit-level=high
       - name: Test Worker utilities and isolated SQLite integration
         run: npm --prefix worker test
       - name: Test against isolated Cloudflare D1 runtime
@@ -38,7 +46,7 @@ jobs:
         with:
           path: ./dist
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

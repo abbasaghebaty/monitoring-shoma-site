@@ -2,8 +2,8 @@ import { parsePagination } from "../validation/common.js";
 export async function listInventory(db, url) {
   const { limit, offset } = parsePagination(url);
   const q = (url.searchParams.get("q") || "").trim().slice(0, 100);
-  const where = q ? "WHERE p.name LIKE ?" : "";
-  const params = q ? [`%${q}%`] : [];
+  const where = q ? "WHERE instr(lower(p.name),lower(?))>0" : "";
+  const params = q ? [q] : [];
   const { results = [] } = await db.prepare(`
     SELECT p.product_id, p.name, p.unit, i.quantity, i.updated_at,
            pp.purchase_price, pp.sell_price, pp.consumer_price, pp.market_price

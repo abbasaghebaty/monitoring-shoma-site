@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const baselineUrl = new URL("../../migrations/0000_baseline.sql", import.meta.url);
 const auditUrl = new URL("../../migrations/0001_product_audit_log.sql", import.meta.url);
 const inventoryUrl = new URL("../../migrations/0002_inventory_master_data.sql", import.meta.url);
+const integrityUrl = new URL("../../migrations/0003_attendance_and_auth_integrity.sql", import.meta.url);
 
 export function createSqliteD1() {
   const sqlite = new DatabaseSync(":memory:");
@@ -12,6 +13,7 @@ export function createSqliteD1() {
   sqlite.exec(readFileSync(baselineUrl, "utf8"));
   sqlite.exec(readFileSync(auditUrl, "utf8"));
   sqlite.exec(readFileSync(inventoryUrl, "utf8"));
+  sqlite.exec(readFileSync(integrityUrl, "utf8"));
 
   const DB = {
     prepare(sql) {

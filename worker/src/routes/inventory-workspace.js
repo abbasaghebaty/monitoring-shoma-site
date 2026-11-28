@@ -26,7 +26,7 @@ export async function inventoryWorkspaceRoutes(request, env, url, user, context 
 
   const [, key, rawId] = match;
   if (!getInventoryEntity(key)) return failure(404, "NOT_FOUND", "بخش موردنظر پیدا نشد.");
-  if (!canManage(user?.role)) return failure(403, "FORBIDDEN", "برای مدیریت اطلاعات انبار مجوز کافی ندارید.");
+  if (!canManage(user?.role,"inventoryWorkspace")) return failure(403, "FORBIDDEN", "برای مدیریت اطلاعات انبار مجوز کافی ندارید.");
 
   if (request.method === "GET" && !rawId) {
     try {

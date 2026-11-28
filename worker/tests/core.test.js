@@ -2,12 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { canRead } from "../src/auth/permissions.js";
 import { parsePagination, validIsoDate } from "../src/validation/common.js";
+import { corsHeaders } from "../src/middleware/cors.js";
 
 test("all authenticated roles can read site resources", () => {
   assert.equal(canRead("owner", "sales"), true);
   assert.equal(canRead("manager", "customers"), true);
   assert.equal(canRead("employee", "attendance"), true);
-  assert.equal(canRead("employee", "sales"), true);
+  assert.equal(canRead("employee", "sales"), false);
+  assert.equal(canRead("employee", "dashboard"), false);
+  assert.equal(canRead("manager", "users"), false);
+  assert.equal(canRead("owner", "users"), true);
   assert.equal(canRead("employee", "products"), true);
   assert.equal(canRead("unknown", "products"), false);
 });
@@ -23,4 +27,9 @@ test("ISO dates are calendar-valid", () => {
   assert.equal(validIsoDate("2026-11-17"), true);
   assert.equal(validIsoDate("2026-02-31"), false);
   assert.equal(validIsoDate("17/11/2026"), false);
+});
+
+
+test("CORS preflight advertises PATCH for supported update endpoints", () => {
+  assert.match(corsHeaders("https://example.test")["Access-Control-Allow-Methods"], /PATCH/);
 });

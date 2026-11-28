@@ -244,3 +244,24 @@ Baseline برای دیتابیس موجود idempotent است اما migration r
 ## Migration 0002 — inventory master data
 
 The additive migration adds product barcode/category/brand/minimum-stock/active fields and the category, brand, warehouse, warehouse-location and inventory-workspace-audit tables. It does not rewrite existing product, inventory, sales, debt, customer, user or attendance rows. It has not been applied to hosted D1. Before any remote execution, compare the hosted schema read-only against the full migration chain and take a backup.
+
+
+## Migration افزایشی 0003 در شاخه remediation
+
+فایل `worker/migrations/0003_attendance_and_auth_integrity.sql` شامل این تغییرات است:
+
+- partial unique index روی `attendance(telegram_id) WHERE check_out IS NULL` برای جلوگیری قطعی از دو ورود باز.
+- جدول `auth_rate_limits` با کلیدهای هش‌شده برای محدودیت اتمیک درخواست OTP.
+- جدول `auth_otp_challenges` برای نگهداری Hash کد، شمارنده تلاش، زمان انقضا و زمان مصرف.
+
+این Migration داده‌های قبلی را حذف یا بازنویسی نمی‌کند. با این حال، ساخت Unique Index در صورت وجود چند ورود باز برای یک کاربر شکست می‌خورد. پیش‌نیاز read-only:
+
+```sql
+SELECT telegram_id, COUNT(*) AS open_count
+FROM attendance
+WHERE check_out IS NULL
+GROUP BY telegram_id
+HAVING COUNT(*) > 1;
+```
+
+تا زمانی که خروجی این Query بررسی نشده و migration در D1 آزمایشی مستقل موفق نشده است، اجرای آن روی دیتابیس واقعی مجاز نیست. Worker شاخه remediation به جدول‌های `product_audit_log` و `auth_otp_challenges` وابسته است؛ پس Deploy آن پیش از اجرای Migrationهای موردنیاز، باعث شکست عملیات کالا و OTP خواهد شد. هیچ Migrationای در این شاخه روی Production اجرا نشده است.

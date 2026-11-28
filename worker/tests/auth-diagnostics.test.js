@@ -27,15 +27,32 @@ function makeKv({ failGet = false, failPut = false, failDelete = false } = {}) {
   };
 }
 
-function makeDb(user = { telegram_id: 123456, full_name: "Test", role: "owner", is_active: 1 }, failure = null) {
+function makeDb(
+  user = { telegram_id: 123456, full_name: "Test", role: "owner", is_active: 1 },
+  failure = null,
+  { rateLimit = true, failChallengeWrite = false } = {},
+) {
+  const calls = [];
   return {
-    prepare() {
+    calls,
+    prepare(sql) {
       return {
-        bind() {
+        bind(...values) {
           return {
             async first() {
+              calls.push({ sql, values, method: "first" });
               if (failure) throw failure;
-              return user;
+              if (sql.includes("INSERT INTO auth_rate_limits")) return rateLimit ? { request_count: 1 } : null;
+              if (sql.includes("FROM users")) return user;
+              if (sql.includes("FROM auth_otp_challenges")) return null;
+              return null;
+            },
+            async run() {
+              calls.push({ sql, values, method: "run" });
+              if (failure || (failChallengeWrite && sql.includes("INSERT INTO auth_otp_challenges"))) {
+                throw failure || new Error("D1 challenge write failed");
+              }
+              return { meta: { changes: 1 } };
             },
           };
         },
@@ -44,9 +61,9 @@ function makeDb(user = { telegram_id: 123456, full_name: "Test", role: "owner", 
   };
 }
 
-function makeEnv({ user, dbFailure, kv, token = "test-token", pepper = "test-pepper" } = {}) {
+function makeEnv({ user, dbFailure, db, kv, token = "test-token", pepper = "test-pepper" } = {}) {
   return {
-    DB: makeDb(user, dbFailure),
+    DB: db || makeDb(user, dbFailure),
     SITE_AUTH_KV: kv || makeKv(),
     BOT_TOKEN: token,
     OTP_PEPPER: pepper,
@@ -102,11 +119,11 @@ test("D1 query failure returns a traceable database error", async () => {
   assert.equal(body.error.errorCode, "DB_002");
 });
 
-test("KV cooldown lookup failure returns a service-unavailable error", async () => {
-  const response = await requestOtp(request(), makeEnv({ kv: makeKv({ failGet: true }) }), context());
+test("legacy KV invalidation failure returns the same neutral response", async () => {
+  const response = await requestOtp(request(), makeEnv({ kv: makeKv({ failDelete: true }) }), context());
   const body = await responseBody(response);
-  assert.equal(response.status, 503);
-  assert.equal(body.error.errorCode, "KV_001");
+  assert.equal(response.status, 202);
+  assert.equal(body.status, "unconfirmed");
 });
 
 
@@ -127,7 +144,7 @@ test("OTP storage failure is logged without revealing account eligibility", asyn
   globalThis.fetch = async () => {
     throw new Error("Telegram must not be called when OTP storage fails");
   };
-  const response = await requestOtp(request(), makeEnv({ kv: makeKv({ failPut: true }) }), context());
+  const response = await requestOtp(request(), makeEnv({ db: makeDb(undefined, null, { failChallengeWrite: true }) }), context());
   const body = await responseBody(response);
   assert.equal(response.status, 202);
   assert.equal(body.status, "unconfirmed");
@@ -142,10 +159,8 @@ test("unknown and inactive users receive the same neutral response", async () =>
   assert.deepEqual(await responseBody(unknown), await responseBody(inactive));
 });
 
-test("cooldown returns the neutral anti-enumeration response", async () => {
-  const kv = makeKv();
-  await kv.put("otp-cooldown:123456", "1");
-  const response = await requestOtp(request(), makeEnv({ kv }), context());
+test("D1 rate-limit rejection returns the neutral anti-enumeration response", async () => {
+  const response = await requestOtp(request(), makeEnv({ db: makeDb(undefined, null, { rateLimit: false }) }), context());
   assert.equal(response.status, 202);
   assert.equal((await responseBody(response)).status, "unconfirmed");
 });
@@ -179,7 +194,7 @@ test("Telegram network failure is distinguished from API rejection", async () =>
   assert.ok(captured.some((line) => line.includes('"errorCode":"NET_001"')));
 });
 
-test("successful Telegram acceptance stores cooldown and returns neutral 202", async () => {
+test("successful Telegram acceptance stores a D1 challenge and returns neutral 202", async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
@@ -187,8 +202,8 @@ test("successful Telegram acceptance stores cooldown and returns neutral 202", a
   const kv = makeKv();
   const response = await requestOtp(request(), makeEnv({ kv }), context());
   assert.equal(response.status, 202);
-  assert.ok(kv.values.has("otp:123456"));
-  assert.equal(kv.values.get("otp-cooldown:123456"), "1");
+  assert.equal(kv.values.has("otp:123456"), false);
+  assert.equal(kv.values.has("otp-cooldown:123456"), false);
 });
 
 test("request metadata standardizes errors and exposes Ray ID safely", async () => {
