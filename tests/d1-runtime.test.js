@@ -8,6 +8,8 @@ import {
   ProductConflictError,
 } from "../worker/src/repositories/products.js";
 import { productWriteRoutes } from "../worker/src/routes/products.js";
+import { domainWriteRoutes } from "../worker/src/routes/domain-write.js";
+import { canRead, canManage } from "../worker/src/auth/permissions.js";
 import { listInventory } from "../worker/src/repositories/inventory.js";
 import { listSales } from "../worker/src/repositories/sales.js";
 import { listDebts } from "../worker/src/repositories/debts.js";
@@ -71,6 +73,7 @@ beforeAll(async () => {
   await applyStatements(env.TEST_BASELINE_SQL);
   await applyStatements(env.TEST_AUDIT_MIGRATION_SQL);
   await applyStatements(env.TEST_INVENTORY_MIGRATION_SQL);
+  await applyStatements(env.TEST_INTEGRITY_MIGRATION_SQL);
   await env.DB.prepare(
     "INSERT INTO users (telegram_id, full_name, role, is_active) VALUES (?, ?, 'manager', 1)"
   ).bind(actorTelegramId, "D1 Integration Manager").run();
@@ -345,7 +348,7 @@ describe("inventory workspace master-data D1 integration", () => {
       { telegram_id: actorTelegramId, role: "employee" },
       { requestId: id("employee-create") },
     );
-    expect(employeeCreated.status).toBe(201);
+    expect(employeeCreated.status).toBe(403);
 
     const managerCreated = await inventoryWorkspaceRoutes(
       makeRequest("Manager brand"),
@@ -357,8 +360,58 @@ describe("inventory workspace master-data D1 integration", () => {
     expect(managerCreated.status).toBe(201);
 
     const listed = await listInventoryEntity(env.DB, "brands", url);
-    expect(listed.items.some((item) => item.name === "Employee brand")).toBe(true);
+    expect(listed.items.some((item) => item.name === "Employee brand")).toBe(false);
     expect(listed.items.some((item) => item.name === "Manager brand")).toBe(true);
     expect(listed.items.some((item) => item.name === "Invalid role brand")).toBe(false);
+  });
+});
+
+
+describe("role permissions and operational concurrency", () => {
+  it("applies the documented role matrix at the permission layer", () => {
+    expect(canRead("owner", "users")).toBe(true);
+    expect(canManage("owner", "products")).toBe(true);
+    expect(canRead("manager", "sales")).toBe(true);
+    expect(canRead("manager", "users")).toBe(false);
+    expect(canManage("manager", "inventoryWorkspace")).toBe(true);
+    expect(canRead("employee", "attendance")).toBe(true);
+    expect(canRead("employee", "sales")).toBe(false);
+    expect(canRead("employee", "debts")).toBe(false);
+    expect(canManage("employee", "products")).toBe(false);
+    expect(canManage("employee", "attendance")).toBe(true);
+  });
+
+  it("allows only one open attendance row during simultaneous check-in requests", async () => {
+    const url = new URL("https://worker.test/api/v1/attendance/check-in");
+    const makeRequest = () => new Request(url, { method: "POST" });
+    const responses = await Promise.all([
+      domainWriteRoutes(makeRequest(), { DB: env.DB }, url, manager),
+      domainWriteRoutes(makeRequest(), { DB: env.DB }, url, manager),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    const open = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM attendance WHERE telegram_id=? AND check_out IS NULL"
+    ).bind(actorTelegramId).first();
+    expect(Number(open.count)).toBe(1);
+  });
+
+  it("keeps all sales report sections consistent with a selected channel", async () => {
+    const productId = id("D1-CHANNEL-FILTER");
+    await createProduct(env.DB, { product_id: productId, name: "channel filter", sell_price: 10, purchase_price: 4 }, context(id("channel-create")));
+    await env.DB.prepare("UPDATE inventory SET quantity=10 WHERE product_id=?").bind(productId).run();
+    await env.DB.prepare(
+      "INSERT INTO sales (product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(productId,2,"2026-11-22","10:00:00","in_store",4,10,12,20,"cash").run();
+    await env.DB.prepare(
+      "INSERT INTO sales (product_id,quantity,sale_date,sale_time,sale_channel,purchase_price,sell_price,consumer_price,amount_paid,payment_method) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    ).bind(productId,1,"2026-11-22","11:00:00","online",4,10,12,10,"cash").run();
+
+    const url = new URL("https://worker.test/api/v1/reports/sales?from=2026-11-01&to=2026-11-30&channel=in_store");
+    const response = await dashboardRoutes(new Request(url), { DB: env.DB }, url, manager);
+    const data = (await response.json()).data;
+    expect(data.channels).toHaveLength(1);
+    expect(data.channels[0].sale_channel).toBe("in_store");
+    expect(Number(data.channels[0].total_amount)).toBe(Number(data.totals.total_amount));
+    expect(data.daily.reduce((sum, row) => sum + Number(row.total_amount), 0)).toBe(Number(data.totals.total_amount));
   });
 });
