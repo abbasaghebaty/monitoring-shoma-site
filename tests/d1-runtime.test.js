@@ -122,7 +122,7 @@ describe("Cloudflare D1 runtime product integrity", () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
     ).all();
     expect(tables.results.map((row) => row.name)).toEqual([
-      "attendance", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
+      "auth_otp_challenges", "auth_rate_limits", "attendance", "customers", "debts", "inventory", "inventory_workspace_audit", "product_audit_log",
       "product_brands", "product_categories", "product_prices", "products", "sales", "users", "warehouse_locations", "warehouses",
     ]);
 
@@ -382,6 +382,7 @@ describe("role permissions and operational concurrency", () => {
   });
 
   it("allows only one open attendance row during simultaneous check-in requests", async () => {
+    await env.DB.prepare("UPDATE attendance SET check_out=datetime('now') WHERE telegram_id=? AND check_out IS NULL").bind(actorTelegramId).run();
     const url = new URL("https://worker.test/api/v1/attendance/check-in");
     const makeRequest = () => new Request(url, { method: "POST" });
     const responses = await Promise.all([
