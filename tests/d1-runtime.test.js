@@ -8,7 +8,8 @@ import {
   ProductConflictError,
 } from "../worker/src/repositories/products.js";
 import { productWriteRoutes } from "../worker/src/routes/products.js";
-import { domainWriteRoutes } from "../worker/src/routes/domain-write.js";
+import { domainWriteRoutes, userReadRoutes } from "../worker/src/routes/domain-write.js";
+import { resourceRoutes } from "../worker/src/routes/resources.js";
 import { canRead, canManage } from "../worker/src/auth/permissions.js";
 import { requestOtp, verifyOtp } from "../worker/src/auth/otp.js";
 import { sha256 } from "../worker/src/auth/crypto.js";
@@ -409,6 +410,52 @@ describe("role permissions and operational concurrency", () => {
     expect(report.status).toBe(403);
   });
 
+
+  it("enforces employee resource scope and removes management price fields", async () => {
+    const employeeId = 7001002;
+    await env.DB.prepare("INSERT INTO users (telegram_id,full_name,role,is_active) VALUES (?,?,?,1)")
+      .bind(employeeId,"Employee Scope","employee").run();
+    const employee = { telegram_id: employeeId, role: "employee" };
+    const productId = id("EMPLOYEE-SCOPE");
+    const productName = "Employee Scope Product " + productId;
+    await createProduct(env.DB,{product_id:productId,name:productName,purchase_price:7,sell_price:12,consumer_price:14,market_price:13},context(id("employee-scope-create")));
+
+    const productsUrl = new URL("https://worker.test/api/v1/products?q="+encodeURIComponent(productId));
+    const productsResponse = await resourceRoutes(new Request(productsUrl),{DB:env.DB},productsUrl,employee);
+    const product = (await productsResponse.json()).data.items[0];
+    expect(product.sell_price).toBe(12);
+    expect(product.purchase_price).toBeUndefined();
+    expect(product.consumer_price).toBeUndefined();
+    expect(product.market_price).toBeUndefined();
+
+    const inventoryUrl = new URL("https://worker.test/api/v1/inventory?q="+encodeURIComponent(productName));
+    const inventoryResponse = await resourceRoutes(new Request(inventoryUrl),{DB:env.DB},inventoryUrl,employee);
+    const inventory = (await inventoryResponse.json()).data.items[0];
+    expect(inventory.purchase_price).toBeUndefined();
+    expect(inventory.consumer_price).toBeUndefined();
+    expect(inventory.market_price).toBeUndefined();
+
+    for (const path of ["/api/v1/product-prices","/api/v1/sales","/api/v1/debts"]) {
+      const url = new URL("https://worker.test"+path);
+      const response = await resourceRoutes(new Request(url),{DB:env.DB},url,employee);
+      expect(response.status).toBe(403);
+    }
+
+    await env.DB.prepare("INSERT INTO attendance (telegram_id,check_in,check_out,duration_minutes) VALUES (?,?,?,?)")
+      .bind(actorTelegramId,"2026-11-20 08:00:00","2026-11-20 16:00:00",480).run();
+    await env.DB.prepare("INSERT INTO attendance (telegram_id,check_in,check_out,duration_minutes) VALUES (?,?,?,?)")
+      .bind(employeeId,"2026-11-21 08:00:00","2026-11-21 16:00:00",480).run();
+    const attendanceUrl = new URL("https://worker.test/api/v1/attendance");
+    const attendanceResponse = await resourceRoutes(new Request(attendanceUrl),{DB:env.DB},attendanceUrl,employee);
+    const attendance = (await attendanceResponse.json()).data.items;
+    expect(attendance.length).toBeGreaterThan(0);
+    expect(attendance.every(row=>row.telegram_id===employeeId)).toBe(true);
+
+    const usersUrl = new URL("https://worker.test/api/v1/users");
+    const usersResponse = await userReadRoutes(new Request(usersUrl),{DB:env.DB},usersUrl,manager);
+    expect(usersResponse.status).toBe(403);
+  });
+
   it("keeps all sales report sections consistent with a selected channel", async () => {
     const productId = id("D1-CHANNEL-FILTER");
     await createProduct(env.DB, { product_id: productId, name: "channel filter", sell_price: 10, purchase_price: 4 }, context(id("channel-create")));
@@ -474,6 +521,24 @@ describe("OTP one-time verification integrity", () => {
 
 
 describe("OTP request rate-limit reservation", () => {
+
+  it("limits OTP requests per source IP across distinct account IDs", async () => {
+    const pepper = "isolated-ip-rate-limit-pepper";
+    const testEnv = { DB: env.DB, SITE_AUTH_KV: env.SITE_AUTH_KV, OTP_PEPPER: pepper, BOT_TOKEN: "test-token" };
+    const responses = await Promise.all(Array.from({length:13},(_,index)=>{
+      const request = new Request("https://worker.test/api/v1/auth/request-otp",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","CF-Connecting-IP":"203.0.113.29"},
+        body:JSON.stringify({telegramId:String(8100000+index)}),
+      });
+      return requestOtp(request,testEnv);
+    }));
+    expect(responses.every(response=>response.status===202)).toBe(true);
+    const ipKey = await sha256("otp-ip:203.0.113.29:"+pepper);
+    const rate = await env.DB.prepare("SELECT request_count FROM auth_rate_limits WHERE key_hash=?").bind(ipKey).first();
+    expect(rate.request_count).toBe(12);
+  });
+
   it("allows only one concurrent OTP send for the same Telegram account", async () => {
     const pepper = "isolated-rate-limit-pepper";
     const send = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 }));
